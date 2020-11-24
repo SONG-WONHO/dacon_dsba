@@ -1091,7 +1091,7 @@ class CFG:
 
     # etc
     fold_ensemble = False
-    validation = False
+    validation = True
     submission = True
     block_tri = False
 
