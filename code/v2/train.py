@@ -808,6 +808,68 @@ class BaseModel(nn.Module):
         return sent_scores, mask_cls
 
 
+class BaseModel2(nn.Module):
+    def __init__(self, config):
+        super(BaseModel2, self).__init__()
+
+        self.config = config
+
+        # bert encoder
+        self.bert = BertModel.from_pretrained('monologg/kobert')
+
+        # out
+        self.ext_layer = ExtTransformerEncoder(self.bert.config.hidden_size,
+                                               2048, 8, 0.2, 1)
+
+        self.ext_layer = Classifier(self.bert.config.hidden_size)
+
+        if (config.max_len > 512):
+            my_pos_embeddings = nn.Embedding(config.max_len, self.bert.config.hidden_size)
+            my_pos_embeddings.weight.data[:512] = self.bert.embeddings.position_embeddings.weight.data
+            my_pos_embeddings.weight.data[512:] = self.bert.embeddings.position_embeddings.weight.data[-1][None, :].repeat(config.max_len - 512, 1)
+            self.bert.embeddings.position_embeddings = my_pos_embeddings
+            self.bert.embeddings.position_ids = torch.arange(config.max_len).expand((1, -1))
+
+    def forward(self, src, mask_src, segs, clss, mask_cls):
+        # (last_hidden_state, pooler_output, hidden_states, attentions)
+        top_vec, _ = self.bert(src, mask_src, segs)
+        sents_vec = top_vec[torch.arange(top_vec.size(0)).unsqueeze(1), clss]
+        sents_vec = sents_vec * mask_cls[:, :, None].float()
+        sent_scores = self.ext_layer(sents_vec, mask_cls)
+        return sent_scores, mask_cls
+
+
+class BaseModel3(nn.Module):
+    def __init__(self, config):
+        super(BaseModel3, self).__init__()
+
+        self.config = config
+
+        # bert encoder
+        self.bert = BertModel.from_pretrained('monologg/kobert')
+
+        # out
+        self.ext_layer = ExtTransformerEncoder(self.bert.config.hidden_size,
+                                               2048, 8, 0.2, 3)
+
+        self.ext_layer = Classifier(self.bert.config.hidden_size)
+
+        if (config.max_len > 512):
+            my_pos_embeddings = nn.Embedding(config.max_len, self.bert.config.hidden_size)
+            my_pos_embeddings.weight.data[:512] = self.bert.embeddings.position_embeddings.weight.data
+            my_pos_embeddings.weight.data[512:] = self.bert.embeddings.position_embeddings.weight.data[-1][None, :].repeat(config.max_len - 512, 1)
+            self.bert.embeddings.position_embeddings = my_pos_embeddings
+            self.bert.embeddings.position_ids = torch.arange(config.max_len).expand((1, -1))
+
+    def forward(self, src, mask_src, segs, clss, mask_cls):
+        # (last_hidden_state, pooler_output, hidden_states, attentions)
+        top_vec, _ = self.bert(src, mask_src, segs)
+        sents_vec = top_vec[torch.arange(top_vec.size(0)).unsqueeze(1), clss]
+        sents_vec = sents_vec * mask_cls[:, :, None].float()
+        sent_scores = self.ext_layer(sents_vec, mask_cls)
+        return sent_scores, mask_cls
+
+
 def get_model(config):
     try:
         f = globals().get(f"{config.model_name}")
@@ -1034,7 +1096,7 @@ class CFG:
     max_len = 1536
 
     # model
-    model_name = "BaseModel"
+    model_name = "BaseModel2"
     pretrained_name = "bert-base-uncased"
     dropout = 0.1
 
