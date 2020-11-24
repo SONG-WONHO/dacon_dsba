@@ -153,7 +153,7 @@ class DSBADataset(Dataset):
         labels = labels.numpy().tolist()
 
         # augmentation
-        if True:
+        if self.augment:
             # get candidate
             cands = []
             clss, num_tokens = np.asarray(clss), np.asarray(num_tokens)
