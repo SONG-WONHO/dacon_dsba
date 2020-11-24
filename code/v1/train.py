@@ -96,7 +96,7 @@ def preprocess(df, test=False):
 
 
 class DSBADataset(Dataset):
-    def __init__(self, config, df, tokenizer, test=False):
+    def __init__(self, config, df, tokenizer, augment=False, test=False):
         """ Init Dataset Class
 
         Args:
@@ -110,6 +110,7 @@ class DSBADataset(Dataset):
         self.tokenizer = tokenizer
         self.items = df[
             ['id', 'media', 'article_original', 'extractive']].values
+        self.augment = augment
         self.test = test
 
     def __len__(self):
@@ -1094,9 +1095,9 @@ for fold, (tr_idx, vl_idx) in enumerate(folds.split(train_df, pd.qcut(
 tokenizer = KoBertTokenizer.from_pretrained('monologg/kobert')
 
 trn_dataset = DSBADataset(
-    CFG, train_df[train_df['fold'] != CFG.val_fold], tokenizer, False)
+    CFG, train_df[train_df['fold'] != CFG.val_fold], tokenizer, augment=True, test=False)
 val_dataset = DSBADataset(
-    CFG, train_df[train_df['fold'] == CFG.val_fold], tokenizer, False)
+    CFG, train_df[train_df['fold'] == CFG.val_fold], tokenizer, augment=False, test=False)
 
 # samples
 loader = DataLoader(trn_dataset, batch_size=4, shuffle=False, collate_fn=collate_fn)
