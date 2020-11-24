@@ -1038,11 +1038,11 @@ class CFG:
     dropout = 0.1
 
     # train
-    batch_size = 12
+    batch_size = 16
     learning_rate = 3e-5
     num_epochs = 4
     start_epoch = 0
-    warmup_steps = 60
+    warmup_steps = 300
 
     # etc
     seed = 42
