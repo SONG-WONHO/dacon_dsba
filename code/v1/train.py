@@ -161,7 +161,7 @@ class DSBADataset(Dataset):
                 cands.append((i, j, sum(labels[i:j])))
             max_num = max([c[-1] for c in cands])
             cands = [c for c in cands if c[-1] == max_num]
-
+            print(cands)
             # select one
             cand = np.random.choice(cands)
 
