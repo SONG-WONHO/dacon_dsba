@@ -160,7 +160,7 @@ class DSBADataset(Dataset):
                 j = np.where(num_tokens - n <= 800)[0][-1] + 1
                 cands.append((i, j, sum(labels[i:j])))
             max_num = max([c[-1] for c in cands])
-            cands = [c for c in cands if v[-1] == max_num]
+            cands = [c for c in cands if c[-1] == max_num]
 
             # select one
             cand = np.random.choice(cands)
