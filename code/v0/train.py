@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[21]:
-#aldfjkalkdfj
-
 import random
 import os
 import gc
