@@ -25,7 +25,7 @@ from sklearn.model_selection import StratifiedKFold, train_test_split
 
 from transformers import BertModel
 from transformers import AdamW, get_linear_schedule_with_warmup
-from kobert_transformers.tokenization_kobert import KoBertTokenizer
+from tokenizer import BertTokenizer
 
 
 warnings.filterwarnings("ignore")
@@ -139,7 +139,11 @@ class DSBADataset(Dataset):
 
         num = 0
         for i, sent in enumerate(txt):
-            sent = self.tokenizer.encode(sent)
+            # sent = self.tokenizer.encode(sent)
+            tokens = tokenizer.tokenize(sent)
+            tokens = ["[CLS]"] + tokens + ["[SEP]"]
+            sent = tokenizer.convert_tokens_to_ids(tokens)
+
             src += sent
             segs += [i % 2] * len(sent)
             clss.append(num)
@@ -193,7 +197,7 @@ def collate_fn(batch):
     max_len_cls = max([len(b[2]) for b in batch])
 
     # encoded
-    src = torch.LongTensor([b[0] + [1] * (max_len - len(b[0])) for b in batch])
+    src = torch.LongTensor([b[0] + [0] * (max_len - len(b[0])) for b in batch])
     segs = torch.LongTensor([b[1] + [0] * (max_len - len(b[1])) for b in batch])
     clss = torch.LongTensor(
         [b[2] + [0] * (max_len_cls - len(b[2])) for b in batch])
@@ -784,7 +788,8 @@ class BaseModel2(nn.Module):
         self.config = config
 
         # bert encoder
-        self.bert = BertModel.from_pretrained('monologg/kobert')
+        print(f"... {config.etri_path}")
+        self.bert = BertModel.from_pretrained(config.etri_path)
 
         # out
         self.ext_layer = ExtTransformerEncoder(self.bert.config.hidden_size,
@@ -1029,6 +1034,7 @@ class CFG:
     root_path = "./input/data/"
     log_path = "./log/"
     model_path = "./model/"
+    etri_path = "./input/etri/"
 
     # preprocess
     max_len = 1536
@@ -1092,7 +1098,7 @@ for fold, (tr_idx, vl_idx) in enumerate(folds.split(train_df, pd.qcut(
     np.arange(0, 1.01, 0.1), labels=False))):
     train_df.loc[vl_idx, 'fold'] = fold
 
-tokenizer = KoBertTokenizer.from_pretrained('monologg/kobert')
+tokenizer = BertTokenizer.from_pretrained(os.path.join(CFG.etri_path, "vocab.korean.rawtext.list"), do_lower_case=False)
 
 trn_dataset = DSBADataset(
     CFG, train_df[train_df['fold'] != CFG.val_fold], tokenizer, augment=True, test=False)
@@ -1102,8 +1108,7 @@ val_dataset = DSBADataset(
 # samples
 loader = DataLoader(trn_dataset, batch_size=4, shuffle=False, collate_fn=collate_fn)
 for d in loader: break
-print("Sample: ", tokenizer.convert_tokens_to_string(
-    tokenizer.convert_ids_to_tokens(d[0][0])))
+print("Sample: ", tokenizer.convert_ids_to_tokens(d[0][1].numpy()))
 
 # get model
 print(f"Get Model: {CFG.model_name}")
