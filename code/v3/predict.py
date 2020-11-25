@@ -666,43 +666,6 @@ class ExtTransformerEncoder(nn.Module):
         return sent_scores
 
 
-class BaseModel(nn.Module):
-    def __init__(self, config):
-        super(BaseModel, self).__init__()
-
-        self.config = config
-
-        # bert encoder
-        self.bert = BertModel.from_pretrained('monologg/kobert')
-
-        # out
-        self.ext_layer = ExtTransformerEncoder(self.bert.config.hidden_size,
-                                               2048, 8,
-                                               0.2, 2)
-
-        self.ext_layer = Classifier(self.bert.config.hidden_size)
-
-        if (config.max_len > 512):
-            my_pos_embeddings = nn.Embedding(config.max_len,
-                                             self.bert.config.hidden_size)
-            my_pos_embeddings.weight.data[
-            :512] = self.bert.embeddings.position_embeddings.weight.data
-            my_pos_embeddings.weight.data[512:] = \
-            self.bert.embeddings.position_embeddings.weight.data[-1][None,
-            :].repeat(config.max_len - 512, 1)
-            self.bert.embeddings.position_embeddings = my_pos_embeddings
-            self.bert.embeddings.position_ids = torch.arange(
-                config.max_len).expand((1, -1))
-
-    def forward(self, src, mask_src, segs, clss, mask_cls):
-        # (last_hidden_state, pooler_output, hidden_states, attentions)
-        top_vec, _ = self.bert(src, mask_src, segs)
-        sents_vec = top_vec[torch.arange(top_vec.size(0)).unsqueeze(1), clss]
-        sents_vec = sents_vec * mask_cls[:, :, None].float()
-        sent_scores = self.ext_layer(sents_vec, mask_cls)
-        return sent_scores, mask_cls
-
-
 class BaseModel2(nn.Module):
     def __init__(self, config):
         super(BaseModel2, self).__init__()
@@ -725,102 +688,9 @@ class BaseModel2(nn.Module):
             self.bert.embeddings.position_embeddings = my_pos_embeddings
             self.bert.embeddings.position_ids = torch.arange(config.max_len).expand((1, -1))
 
-    def forward(self, src, mask_src, segs, clss, mask_cls):
+    def forward(self, src, mask_src, segs, clss, mask_cls, position_ids):
         # (last_hidden_state, pooler_output, hidden_states, attentions)
-        top_vec, _ = self.bert(src, mask_src, segs)
-        sents_vec = top_vec[torch.arange(top_vec.size(0)).unsqueeze(1), clss]
-        sents_vec = sents_vec * mask_cls[:, :, None].float()
-        sent_scores = self.ext_layer(sents_vec, mask_cls)
-        return sent_scores, mask_cls
-
-
-class BaseModel3(nn.Module):
-    def __init__(self, config):
-        super(BaseModel3, self).__init__()
-
-        self.config = config
-
-        # bert encoder
-        self.bert = BertModel.from_pretrained('monologg/kobert')
-
-        # out
-        self.ext_layer = ExtTransformerEncoder(self.bert.config.hidden_size,
-                                               2048, 8, 0.2, 3)
-
-        self.ext_layer = Classifier(self.bert.config.hidden_size)
-
-        if (config.max_len > 512):
-            my_pos_embeddings = nn.Embedding(config.max_len, self.bert.config.hidden_size)
-            my_pos_embeddings.weight.data[:512] = self.bert.embeddings.position_embeddings.weight.data
-            my_pos_embeddings.weight.data[512:] = self.bert.embeddings.position_embeddings.weight.data[-1][None, :].repeat(config.max_len - 512, 1)
-            self.bert.embeddings.position_embeddings = my_pos_embeddings
-            self.bert.embeddings.position_ids = torch.arange(config.max_len).expand((1, -1))
-
-    def forward(self, src, mask_src, segs, clss, mask_cls):
-        # (last_hidden_state, pooler_output, hidden_states, attentions)
-        top_vec, _ = self.bert(src, mask_src, segs)
-        sents_vec = top_vec[torch.arange(top_vec.size(0)).unsqueeze(1), clss]
-        sents_vec = sents_vec * mask_cls[:, :, None].float()
-        sent_scores = self.ext_layer(sents_vec, mask_cls)
-        return sent_scores, mask_cls
-
-
-class BaseModel4(nn.Module):
-    def __init__(self, config):
-        super(BaseModel4, self).__init__()
-
-        self.config = config
-
-        # bert encoder
-        self.bert = BertModel.from_pretrained('monologg/kobert')
-
-        # out
-        self.ext_layer = ExtTransformerEncoder(self.bert.config.hidden_size,
-                                               1024, 8, 0.2, 1)
-
-        self.ext_layer = Classifier(self.bert.config.hidden_size)
-
-        if (config.max_len > 512):
-            my_pos_embeddings = nn.Embedding(config.max_len, self.bert.config.hidden_size)
-            my_pos_embeddings.weight.data[:512] = self.bert.embeddings.position_embeddings.weight.data
-            my_pos_embeddings.weight.data[512:] = self.bert.embeddings.position_embeddings.weight.data[-1][None, :].repeat(config.max_len - 512, 1)
-            self.bert.embeddings.position_embeddings = my_pos_embeddings
-            self.bert.embeddings.position_ids = torch.arange(config.max_len).expand((1, -1))
-
-    def forward(self, src, mask_src, segs, clss, mask_cls):
-        # (last_hidden_state, pooler_output, hidden_states, attentions)
-        top_vec, _ = self.bert(src, mask_src, segs)
-        sents_vec = top_vec[torch.arange(top_vec.size(0)).unsqueeze(1), clss]
-        sents_vec = sents_vec * mask_cls[:, :, None].float()
-        sent_scores = self.ext_layer(sents_vec, mask_cls)
-        return sent_scores, mask_cls
-
-
-class BaseModel5(nn.Module):
-    def __init__(self, config):
-        super(BaseModel5, self).__init__()
-
-        self.config = config
-
-        # bert encoder
-        self.bert = BertModel.from_pretrained('monologg/kobert')
-
-        # out
-        self.ext_layer = ExtTransformerEncoder(self.bert.config.hidden_size,
-                                               2048, 4, 0.2, 1)
-
-        self.ext_layer = Classifier(self.bert.config.hidden_size)
-
-        if (config.max_len > 512):
-            my_pos_embeddings = nn.Embedding(config.max_len, self.bert.config.hidden_size)
-            my_pos_embeddings.weight.data[:512] = self.bert.embeddings.position_embeddings.weight.data
-            my_pos_embeddings.weight.data[512:] = self.bert.embeddings.position_embeddings.weight.data[-1][None, :].repeat(config.max_len - 512, 1)
-            self.bert.embeddings.position_embeddings = my_pos_embeddings
-            self.bert.embeddings.position_ids = torch.arange(config.max_len).expand((1, -1))
-
-    def forward(self, src, mask_src, segs, clss, mask_cls):
-        # (last_hidden_state, pooler_output, hidden_states, attentions)
-        top_vec, _ = self.bert(src, mask_src, segs)
+        top_vec, _ = self.bert(src, mask_src, segs, position_ids)
         sents_vec = top_vec[torch.arange(top_vec.size(0)).unsqueeze(1), clss]
         sents_vec = sents_vec * mask_cls[:, :, None].float()
         sent_scores = self.ext_layer(sents_vec, mask_cls)
@@ -1111,8 +981,9 @@ class DSBADataset(Dataset):
             labels[label] = 1
 
         labels = labels.numpy().tolist()
+        offset = 0
 
-        return src, segs, clss, mask_src, mask_cls, labels, txt, label_str
+        return src, segs, clss, mask_src, mask_cls, labels, txt, label_str, offset
 
 
 class DSBATestDataset(Dataset):
@@ -1168,8 +1039,9 @@ class DSBATestDataset(Dataset):
 
         labels = torch.zeros(len(txt))
         labels = labels.numpy().tolist()
+        offset = 0
 
-        return src, segs, clss, mask_src, mask_cls, labels, txt, np.nan
+        return src, segs, clss, mask_src, mask_cls, labels, txt, np.nan, offset
 
 
 def collate_fn(batch):
@@ -1198,8 +1070,9 @@ def collate_fn(batch):
         [b[5] + [0] * (max_len_cls - len(b[5])) for b in batch])
     txt = [b[6] for b in batch]
     label_str = [b[7] for b in batch]
+    offset = torch.stack([torch.arange(b[8], max_len + b[8]) for b in batch])
 
-    return src, segs, clss, mask_src, mask_cls, labels, txt, label_str
+    return src, segs, clss, mask_src, mask_cls, labels, txt, label_str, offset
 
 
 class CFG:
@@ -1349,13 +1222,14 @@ for fold in range(CFG.n_splits):
                 pred_fin = []
                 losses = AverageMeter()
                 valid_loader = tqdm(valid_loader, leave=False)
-                for i, (src, segs, clss, mask_src, mask_cls, labels, txt, label_str) in enumerate(valid_loader):
+                for i, (src, segs, clss, mask_src, mask_cls, labels, txt, label_str, p_id) in enumerate(valid_loader):
                     src = src.to(CFG.device)
                     segs = segs.to(CFG.device)
                     clss = clss.to(CFG.device)
                     mask_src = mask_src.to(CFG.device)
                     mask_cls = mask_cls.to(CFG.device)
                     labels = labels.to(CFG.device)
+                    p_id = p_id.to(CFG.device)
 
                     gold = []
                     pred = []
@@ -1363,7 +1237,7 @@ for fold in range(CFG.n_splits):
                     batch_size = src.size(0)
 
                     with torch.no_grad():
-                        sent_scores, mask = model(src, mask_src, segs, clss, mask_cls)
+                        sent_scores, mask = model(src, mask_src, segs, clss, mask_cls, p_id)
                         loss = loss_func(sent_scores, labels)
                         loss = (loss * mask).mean()
                         losses.update(loss.item(), batch_size)
@@ -1428,18 +1302,19 @@ for fold in range(CFG.n_splits):
 
                 pred_fin = []
                 test_loader = tqdm(tst_loader, leave=False)
-                for i, (src, segs, clss, mask_src, mask_cls, _, txt, _) in enumerate(test_loader):
+                for i, (src, segs, clss, mask_src, mask_cls, _, txt, _, p_id) in enumerate(test_loader):
                     src = src.to(CFG.device)
                     segs = segs.to(CFG.device)
                     clss = clss.to(CFG.device)
                     mask_src = mask_src.to(CFG.device)
                     mask_cls = mask_cls.to(CFG.device)
+                    p_id = p_id.to(CFG.device)
 
                     gold, pred = [], []
                     batch_size = src.size(0)
 
                     with torch.no_grad():
-                        sent_scores, mask = model(src, mask_src, segs, clss, mask_cls)
+                        sent_scores, mask = model(src, mask_src, segs, clss, mask_cls, p_id)
                         sent_scores = sent_scores + mask.float()
                         sent_scores = sent_scores.cpu().data.numpy()
                         selected_ids = np.argsort(-sent_scores, 1)
