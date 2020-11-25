@@ -26,7 +26,7 @@ from sklearn.model_selection import StratifiedKFold, train_test_split
 
 from transformers import BertModel
 from transformers import AdamW, get_linear_schedule_with_warmup
-from kobert_transformers.tokenization_kobert import KoBertTokenizer
+from tokenizer import BertTokenizer
 
 
 warnings.filterwarnings("ignore")
@@ -673,7 +673,8 @@ class BaseModel2(nn.Module):
         self.config = config
 
         # bert encoder
-        self.bert = BertModel.from_pretrained('monologg/kobert')
+        print(f"... {config.etri_path}")
+        self.bert = BertModel.from_pretrained(config.etri_path)
 
         # out
         self.ext_layer = ExtTransformerEncoder(self.bert.config.hidden_size,
@@ -967,7 +968,11 @@ class DSBADataset(Dataset):
 
         num = 0
         for i, sent in enumerate(txt):
-            sent = self.tokenizer.encode(sent)
+            # sent = self.tokenizer.encode(sent)
+            tokens = tokenizer.tokenize(sent)
+            tokens = ["[CLS]"] + tokens + ["[SEP]"]
+            sent = tokenizer.convert_tokens_to_ids(tokens)
+
             src += sent
             segs += [i % 2] * len(sent)
             clss.append(num)
@@ -1027,7 +1032,11 @@ class DSBATestDataset(Dataset):
 
         num = 0
         for i, sent in enumerate(txt):
-            sent = self.tokenizer.encode(sent)
+            # sent = self.tokenizer.encode(sent)
+            tokens = tokenizer.tokenize(sent)
+            tokens = ["[CLS]"] + tokens + ["[SEP]"]
+            sent = tokenizer.convert_tokens_to_ids(tokens)
+
             src += sent
             segs += [i % 2] * len(sent)
             clss.append(num)
@@ -1056,7 +1065,7 @@ def collate_fn(batch):
     max_len_cls = max([len(b[2]) for b in batch])
 
     # encoded
-    src = torch.LongTensor([b[0] + [1] * (max_len - len(b[0])) for b in batch])
+    src = torch.LongTensor([b[0] + [0] * (max_len - len(b[0])) for b in batch])
     segs = torch.LongTensor([b[1] + [0] * (max_len - len(b[1])) for b in batch])
     clss = torch.LongTensor(
         [b[2] + [0] * (max_len_cls - len(b[2])) for b in batch])
@@ -1077,6 +1086,7 @@ class CFG:
     root_path = "./input/data/"
     save_path = './submission/'
     sub_name = 'submission.csv'
+    etri_path = "./input/etri/"
 
     # learning
     batch_size = 32
@@ -1169,7 +1179,7 @@ for fold, (tr_idx, vl_idx) in enumerate(folds.split(train_df, pd.qcut(
     np.arange(0, 1.01, 0.1), labels=False))):
     train_df.loc[vl_idx, 'fold'] = fold
 
-tokenizer = KoBertTokenizer.from_pretrained('monologg/kobert')
+tokenizer = BertTokenizer.from_pretrained(os.path.join(CFG.etri_path, "vocab.korean.rawtext.list"), do_lower_case=False)
 
 # folds
 for fold in range(CFG.n_splits):
