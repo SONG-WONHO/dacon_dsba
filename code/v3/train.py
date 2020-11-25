@@ -151,6 +151,7 @@ class DSBADataset(Dataset):
         labels = torch.zeros(len(txt))
         if not self.test: labels[label] = 1
         labels = labels.numpy().tolist()
+        offset = 0
 
         # augmentation
         if self.augment:
@@ -170,12 +171,13 @@ class DSBADataset(Dataset):
             mask_src = mask_src[clss[cand[0]]: num_tokens[:cand[1]][-1]]
             segs = segs[clss[cand[0]]: num_tokens[:cand[1]][-1]]
             clss = clss[cand[0]: cand[1]]
-            clss -= clss[0]
+            offset = clss[0]
+            clss -= offset
             clss = clss.tolist()
             labels = labels[cand[0]: cand[1]]
             mask_cls = mask_cls[cand[0]: cand[1]]
 
-        return src, segs, clss, mask_src, mask_cls, labels
+        return src, segs, clss, mask_src, mask_cls, labels, offset
 
 
 def collate_fn(batch):
@@ -203,8 +205,9 @@ def collate_fn(batch):
         [b[4] + [0] * (max_len_cls - len(b[4])) for b in batch])
     labels = torch.FloatTensor(
         [b[5] + [0] * (max_len_cls - len(b[5])) for b in batch])
+    offset = torch.stack([torch.arange(b[6], max_len + b[6]) for b in batch])
 
-    return src, segs, clss, mask_src, mask_cls, labels
+    return src, segs, clss, mask_src, mask_cls, labels, offset
 
 
 def aeq(*args):
@@ -777,37 +780,6 @@ class ExtTransformerEncoder(nn.Module):
         return sent_scores
 
 
-class BaseModel(nn.Module):
-    def __init__(self, config):
-        super(BaseModel, self).__init__()
-
-        self.config = config
-
-        # bert encoder
-        self.bert = BertModel.from_pretrained('monologg/kobert')
-
-        # out
-        self.ext_layer = ExtTransformerEncoder(self.bert.config.hidden_size,
-                                               2048, 8, 0.2, 2)
-
-        self.ext_layer = Classifier(self.bert.config.hidden_size)
-
-        if (config.max_len > 512):
-            my_pos_embeddings = nn.Embedding(config.max_len, self.bert.config.hidden_size)
-            my_pos_embeddings.weight.data[:512] = self.bert.embeddings.position_embeddings.weight.data
-            my_pos_embeddings.weight.data[512:] = self.bert.embeddings.position_embeddings.weight.data[-1][None, :].repeat(config.max_len - 512, 1)
-            self.bert.embeddings.position_embeddings = my_pos_embeddings
-            self.bert.embeddings.position_ids = torch.arange(config.max_len).expand((1, -1))
-
-    def forward(self, src, mask_src, segs, clss, mask_cls):
-        # (last_hidden_state, pooler_output, hidden_states, attentions)
-        top_vec, _ = self.bert(src, mask_src, segs)
-        sents_vec = top_vec[torch.arange(top_vec.size(0)).unsqueeze(1), clss]
-        sents_vec = sents_vec * mask_cls[:, :, None].float()
-        sent_scores = self.ext_layer(sents_vec, mask_cls)
-        return sent_scores, mask_cls
-
-
 class BaseModel2(nn.Module):
     def __init__(self, config):
         super(BaseModel2, self).__init__()
@@ -830,102 +802,9 @@ class BaseModel2(nn.Module):
             self.bert.embeddings.position_embeddings = my_pos_embeddings
             self.bert.embeddings.position_ids = torch.arange(config.max_len).expand((1, -1))
 
-    def forward(self, src, mask_src, segs, clss, mask_cls):
+    def forward(self, src, mask_src, segs, clss, mask_cls, position_ids):
         # (last_hidden_state, pooler_output, hidden_states, attentions)
-        top_vec, _ = self.bert(src, mask_src, segs)
-        sents_vec = top_vec[torch.arange(top_vec.size(0)).unsqueeze(1), clss]
-        sents_vec = sents_vec * mask_cls[:, :, None].float()
-        sent_scores = self.ext_layer(sents_vec, mask_cls)
-        return sent_scores, mask_cls
-
-
-class BaseModel3(nn.Module):
-    def __init__(self, config):
-        super(BaseModel3, self).__init__()
-
-        self.config = config
-
-        # bert encoder
-        self.bert = BertModel.from_pretrained('monologg/kobert')
-
-        # out
-        self.ext_layer = ExtTransformerEncoder(self.bert.config.hidden_size,
-                                               2048, 8, 0.2, 3)
-
-        self.ext_layer = Classifier(self.bert.config.hidden_size)
-
-        if (config.max_len > 512):
-            my_pos_embeddings = nn.Embedding(config.max_len, self.bert.config.hidden_size)
-            my_pos_embeddings.weight.data[:512] = self.bert.embeddings.position_embeddings.weight.data
-            my_pos_embeddings.weight.data[512:] = self.bert.embeddings.position_embeddings.weight.data[-1][None, :].repeat(config.max_len - 512, 1)
-            self.bert.embeddings.position_embeddings = my_pos_embeddings
-            self.bert.embeddings.position_ids = torch.arange(config.max_len).expand((1, -1))
-
-    def forward(self, src, mask_src, segs, clss, mask_cls):
-        # (last_hidden_state, pooler_output, hidden_states, attentions)
-        top_vec, _ = self.bert(src, mask_src, segs)
-        sents_vec = top_vec[torch.arange(top_vec.size(0)).unsqueeze(1), clss]
-        sents_vec = sents_vec * mask_cls[:, :, None].float()
-        sent_scores = self.ext_layer(sents_vec, mask_cls)
-        return sent_scores, mask_cls
-
-
-class BaseModel4(nn.Module):
-    def __init__(self, config):
-        super(BaseModel4, self).__init__()
-
-        self.config = config
-
-        # bert encoder
-        self.bert = BertModel.from_pretrained('monologg/kobert')
-
-        # out
-        self.ext_layer = ExtTransformerEncoder(self.bert.config.hidden_size,
-                                               1024, 8, 0.2, 1)
-
-        self.ext_layer = Classifier(self.bert.config.hidden_size)
-
-        if (config.max_len > 512):
-            my_pos_embeddings = nn.Embedding(config.max_len, self.bert.config.hidden_size)
-            my_pos_embeddings.weight.data[:512] = self.bert.embeddings.position_embeddings.weight.data
-            my_pos_embeddings.weight.data[512:] = self.bert.embeddings.position_embeddings.weight.data[-1][None, :].repeat(config.max_len - 512, 1)
-            self.bert.embeddings.position_embeddings = my_pos_embeddings
-            self.bert.embeddings.position_ids = torch.arange(config.max_len).expand((1, -1))
-
-    def forward(self, src, mask_src, segs, clss, mask_cls):
-        # (last_hidden_state, pooler_output, hidden_states, attentions)
-        top_vec, _ = self.bert(src, mask_src, segs)
-        sents_vec = top_vec[torch.arange(top_vec.size(0)).unsqueeze(1), clss]
-        sents_vec = sents_vec * mask_cls[:, :, None].float()
-        sent_scores = self.ext_layer(sents_vec, mask_cls)
-        return sent_scores, mask_cls
-
-
-class BaseModel5(nn.Module):
-    def __init__(self, config):
-        super(BaseModel5, self).__init__()
-
-        self.config = config
-
-        # bert encoder
-        self.bert = BertModel.from_pretrained('monologg/kobert')
-
-        # out
-        self.ext_layer = ExtTransformerEncoder(self.bert.config.hidden_size,
-                                               2048, 4, 0.2, 1)
-
-        self.ext_layer = Classifier(self.bert.config.hidden_size)
-
-        if (config.max_len > 512):
-            my_pos_embeddings = nn.Embedding(config.max_len, self.bert.config.hidden_size)
-            my_pos_embeddings.weight.data[:512] = self.bert.embeddings.position_embeddings.weight.data
-            my_pos_embeddings.weight.data[512:] = self.bert.embeddings.position_embeddings.weight.data[-1][None, :].repeat(config.max_len - 512, 1)
-            self.bert.embeddings.position_embeddings = my_pos_embeddings
-            self.bert.embeddings.position_ids = torch.arange(config.max_len).expand((1, -1))
-
-    def forward(self, src, mask_src, segs, clss, mask_cls):
-        # (last_hidden_state, pooler_output, hidden_states, attentions)
-        top_vec, _ = self.bert(src, mask_src, segs)
+        top_vec, _ = self.bert(src, mask_src, segs, position_ids)
         sents_vec = top_vec[torch.arange(top_vec.size(0)).unsqueeze(1), clss]
         sents_vec = sents_vec * mask_cls[:, :, None].float()
         sent_scores = self.ext_layer(sents_vec, mask_cls)
@@ -1089,17 +968,18 @@ class Learner(object):
 
         model.train()
         train_iterator = tqdm(train_loader, leave=False)
-        for src, segs, clss, mask_src, mask_cls, labels in train_iterator:
+        for src, segs, clss, mask_src, mask_cls, labels, p_id in train_iterator:
             src = src.to(self.config.device)
             segs = segs.to(self.config.device)
             clss = clss.to(self.config.device)
             mask_src = mask_src.to(self.config.device)
             mask_cls = mask_cls.to(self.config.device)
             labels = labels.to(self.config.device)
+            p_id = p_id.to(self.config.device)
 
             batch_size = src.size(0)
 
-            preds, _ = model(src, mask_src, segs, clss, mask_cls)
+            preds, _ = model(src, mask_src, segs, clss, mask_cls, p_id)
             loss = loss_func(preds, labels)
             loss = (loss * mask_cls.float()).mean()
             losses.update(loss.item(), batch_size)
@@ -1121,7 +1001,7 @@ class Learner(object):
         model.eval()
 
         valid_loader = tqdm(valid_loader, leave=False)
-        for i, (src, segs, clss, mask_src, mask_cls, labels) in enumerate(
+        for i, (src, segs, clss, mask_src, mask_cls, labels, p_id) in enumerate(
                 valid_loader):
             src = src.to(self.config.device)
             segs = segs.to(self.config.device)
@@ -1129,11 +1009,12 @@ class Learner(object):
             mask_src = mask_src.to(self.config.device)
             mask_cls = mask_cls.to(self.config.device)
             labels = labels.to(self.config.device)
+            p_id = p_id.to(self.config.device)
 
             batch_size = src.size(0)
 
             with torch.no_grad():
-                preds, _ = model(src, mask_src, segs, clss, mask_cls)
+                preds, _ = model(src, mask_src, segs, clss, mask_cls, p_id)
                 loss = loss_func(preds, labels)
                 loss = (loss * mask_cls.float()).mean()
                 losses.update(loss.item(), batch_size)
