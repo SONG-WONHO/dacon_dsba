@@ -1104,32 +1104,36 @@ for fold, (tr_idx, vl_idx) in enumerate(folds.split(train_df, pd.qcut(
 
 tokenizer = BertTokenizer.from_pretrained(os.path.join(CFG.etri_path, "vocab.korean.rawtext.list"), do_lower_case=False)
 
-trn_dataset = DSBADataset(
-    CFG, train_df[train_df['fold'] != CFG.val_fold], tokenizer, augment=True, test=False)
-val_dataset = DSBADataset(
-    CFG, train_df[train_df['fold'] == CFG.val_fold], tokenizer, augment=False, test=False)
+for val_fold in range(CFG.n_splits):
+    print(f"***** FOLD: {val_fold} *****")
+    CFG.val_fold = val_fold
 
-# samples
-loader = DataLoader(trn_dataset, batch_size=4, shuffle=False, collate_fn=collate_fn)
-for d in loader: break
-print("Sample: ", tokenizer.convert_ids_to_tokens(d[0][1].numpy()))
+    trn_dataset = DSBADataset(
+        CFG, train_df[train_df['fold'] != CFG.val_fold], tokenizer, augment=True, test=False)
+    val_dataset = DSBADataset(
+        CFG, train_df[train_df['fold'] == CFG.val_fold], tokenizer, augment=False, test=False)
 
-# get model
-print(f"Get Model: {CFG.model_name}")
-model = get_model(CFG)
-if torch.cuda.device_count() > 1:
-    model = nn.DataParallel(model)
-model = model.to(CFG.device)
+    # samples
+    loader = DataLoader(trn_dataset, batch_size=4, shuffle=False, collate_fn=collate_fn)
+    for d in loader: break
+    print("Sample: ", tokenizer.convert_ids_to_tokens(d[0][1].numpy()))
 
-optimizer = AdamW(model.parameters(), CFG.learning_rate)
+    # get model
+    print(f"Get Model: {CFG.model_name}")
+    model = get_model(CFG)
+    if torch.cuda.device_count() > 1:
+        model = nn.DataParallel(model)
+    model = model.to(CFG.device)
 
-# get scheduler
-num_training_steps = int(len(trn_dataset) / CFG.batch_size) * (CFG.num_epochs)
-scheduler = get_linear_schedule_with_warmup(
-    optimizer, num_warmup_steps=CFG.warmup_steps, num_training_steps=num_training_steps)
+    optimizer = AdamW(model.parameters(), CFG.learning_rate)
 
-### Train related logic
-# get learner
-learner = Learner(CFG)
-learner.name = f"model.fold_{CFG.val_fold}"
-learner.train(trn_dataset, val_dataset, model, optimizer, scheduler)
+    # get scheduler
+    num_training_steps = int(len(trn_dataset) / CFG.batch_size) * (CFG.num_epochs)
+    scheduler = get_linear_schedule_with_warmup(
+        optimizer, num_warmup_steps=CFG.warmup_steps, num_training_steps=num_training_steps)
+
+    ### Train related logic
+    # get learner
+    learner = Learner(CFG)
+    learner.name = f"model.fold_{CFG.val_fold}"
+    learner.train(trn_dataset, val_dataset, model, optimizer, scheduler)
