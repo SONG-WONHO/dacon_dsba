@@ -1,0 +1,12 @@
+v0:
+    - Baseline
+v1:
+    - Max sequence length
+v2:
+    - Model Architecture
+v3:
+    - Dynamic positioning encoding
+v4:
+    - Etri Bert
+v5:
+    - v4 + dropout
