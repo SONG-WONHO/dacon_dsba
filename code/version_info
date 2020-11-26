@@ -7,6 +7,8 @@ v2:
 v3:
     - Dynamic positioning encoding
 v4:
-    - Etri Bert
+    - Etri Bert(WordPiece)
 v5:
     - v4 + dropout
+v6:
+    - 5 Fold
