@@ -24,7 +24,7 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import StratifiedKFold, train_test_split
 
-from transformers import BertModel
+from transformers import BertModel, BertConfig
 from transformers import AdamW, get_linear_schedule_with_warmup
 from tokenizer import BertTokenizer
 
@@ -674,7 +674,11 @@ class BaseModel2(nn.Module):
 
         # bert encoder
         print(f"... {config.etri_path}")
-        self.bert = BertModel.from_pretrained(config.etri_path)
+        # self.bert = BertModel.from_pretrained(config.etri_path)
+        bert_config = BertConfig.from_json_file(os.path.join(config.etri_path, "config.json"))
+        bert_config.attention_probs_dropout_prob = config.dropout
+        bert_config.hidden_dropout_prob = config.dropout
+        self.bert = BertModel.from_pretrained(None, config=bert_config,state_dict=torch.load(os.path.join(config.etri_path, "pytorch_model.bin")))
 
         # out
         self.ext_layer = ExtTransformerEncoder(self.bert.config.hidden_size,
