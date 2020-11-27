@@ -1513,7 +1513,7 @@ if CFG.fold_ensemble:
                                       mask_cls)
             sent_scores = sent_scores + mask.float()
             sent_scores = sent_scores.cpu().data.numpy()
-            print(snet_scores.shape)
+            print(sent_scores.shape)
 
             selected_ids = np.argsort(-sent_scores, 1)
 
