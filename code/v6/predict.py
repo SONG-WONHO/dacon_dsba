@@ -1098,8 +1098,8 @@ class CFG:
     seed = 42
 
     # etc
-    fold_ensemble = False
-    validation = True
+    fold_ensemble = True
+    validation = False
     submission = True
     block_tri = False
 
@@ -1188,7 +1188,118 @@ tokenizer = BertTokenizer.from_pretrained(os.path.join(CFG.etri_path, "vocab.kor
 # folds
 for fold in range(CFG.n_splits):
     if CFG.fold_ensemble:
-        pass
+        CFG.val_fold = fold
+        models = []
+        learner = Learner(CFG)
+        learner.name = f"model.fold_{CFG.val_fold}"
+        model_name = f'model.fold_{fold}.best.pt'
+        print(model_name)
+        learner.load(os.path.join(CFG.model_path, model_name),
+                     f"model_state_dict")
+
+        model = learner.best_model
+        model.eval()
+
+        def _get_ngrams(n, text):
+            ngram_set = set()
+            text_length = len(text)
+            max_index_ngram_start = text_length - n
+            for i in range(max_index_ngram_start + 1):
+                ngram_set.add(tuple(text[i:i + n]))
+            return ngram_set
+
+
+        def _block_tri(c, p, n_block=3):
+            tri_c = _get_ngrams(n_block, c.split())
+            for s in p:
+                tri_s = _get_ngrams(n_block, s.split())
+                if len(tri_c.intersection(tri_s)) > 0:
+                    return True
+            return False
+
+        if CFG.validation:
+            val_dataset = DSBADataset(
+                CFG, train_df[train_df['fold'] == CFG.val_fold], tokenizer,
+                False)
+
+            valid_loader = DataLoader(
+                val_dataset,
+                batch_size=CFG.batch_size * 2, shuffle=False,
+                num_workers=CFG.workers, pin_memory=True,
+                collate_fn=collate_fn
+            )
+
+            gold_fin = []
+            pred_fin = []
+            losses = AverageMeter()
+            valid_loader = tqdm(valid_loader, leave=False)
+            for i, (src, segs, clss, mask_src, mask_cls, labels, txt,
+                    label_str) in enumerate(valid_loader):
+                src = src.to(CFG.device)
+                segs = segs.to(CFG.device)
+                clss = clss.to(CFG.device)
+                mask_src = mask_src.to(CFG.device)
+                mask_cls = mask_cls.to(CFG.device)
+                labels = labels.to(CFG.device)
+
+                gold = []
+                pred = []
+
+                batch_size = src.size(0)
+
+                with torch.no_grad():
+                    sent_scores, mask = model(src, mask_src, segs, clss,
+                                              mask_cls)
+                    loss = loss_func(sent_scores, labels)
+                    loss = (loss * mask).mean()
+                    losses.update(loss.item(), batch_size)
+
+                    sent_scores = sent_scores + mask.float()
+                    sent_scores = sent_scores.cpu().data.numpy()
+                    selected_ids = np.argsort(-sent_scores, 1)
+
+                    for i, idx in enumerate(selected_ids):
+                        _pred = []
+                        if (len(txt[i]) == 0):
+                            continue
+                        for j in selected_ids[i][:len(txt[i])]:
+                            if (j >= len(txt[i])):
+                                continue
+                            candidate = txt[i][j].strip()
+                            if CFG.block_tri:
+                                if (not _block_tri(candidate, _pred, 3)):
+                                    _pred.append(candidate)
+                            else:
+                                _pred.append(candidate)
+
+                            if len(_pred) == 3:
+                                break
+
+                        _pred = '\n'.join(_pred)
+                        pred.append(_pred)
+                        gold.append(label_str[i])
+
+                gold_fin += gold
+                pred_fin += pred
+                valid_loader.set_description(f"valid ce:{losses.avg:.4f}")
+
+            print(f"Loss: {losses.avg:.4f}")
+            assert len(gold_fin) == len(pred_fin)
+
+            rouge = Rouge()
+            rouge1_fin, rouge2_fin, rougel_fin = [], [], []
+            for p, g in tqdm(zip(pred_fin, gold_fin)):
+                scores = rouge.get_scores(p, g)
+                rouge1 = scores[0]['rouge-1']['f']
+                rouge2 = scores[0]['rouge-2']['f']
+                rougel = scores[0]['rouge-l']['f']
+
+                rouge1_fin.append(rouge1)
+                rouge2_fin.append(rouge2)
+                rougel_fin.append(rougel)
+
+            print(
+                f"Rouge Score: {np.mean(rouge1_fin):.4f}, {np.mean(rouge2_fin):.4f}, {np.mean(rougel_fin):.4f}")
 
     else:
         if fold == CFG.val_fold:
@@ -1356,3 +1467,81 @@ for fold in range(CFG.n_splits):
                 assert (ss_ext_df['summary'].str.split("\n").apply(len) == 3).all()
 
                 ss_ext_df.to_csv(os.path.join(CFG.save_path, CFG.sub_name), index=False)
+
+
+if CFG.fold_ensemble:
+    models = []
+    learner = Learner(CFG)
+    for i in range(CFG.n_splits):
+        learner.name = f"model.fold_{i}"
+        model_name = f'model.fold_{i}.best.pt'
+        learner.load(os.path.join(CFG.model_path, model_name),
+                     f"model_state_dict")
+
+        model = learner.best_model.copy()
+        model.eval()
+        models.append(model)
+
+    # prediction
+    tst_dataset = DSBATestDataset(
+        CFG, test_ext_df, tokenizer, False)
+
+    tst_loader = DataLoader(
+        tst_dataset,
+        batch_size=CFG.batch_size * 2, shuffle=False,
+        num_workers=CFG.workers, pin_memory=True,
+        collate_fn=collate_fn
+    )
+
+    pred_fin = []
+    test_loader = tqdm(tst_loader, leave=False)
+    for i, (
+            src, segs, clss, mask_src, mask_cls, _, txt, _) in enumerate(
+        test_loader):
+        src = src.to(CFG.device)
+        segs = segs.to(CFG.device)
+        clss = clss.to(CFG.device)
+        mask_src = mask_src.to(CFG.device)
+        mask_cls = mask_cls.to(CFG.device)
+
+        gold, pred = [], []
+        batch_size = src.size(0)
+
+        with torch.no_grad():
+            sent_scores, mask = models[0](src, mask_src, segs, clss,
+                                      mask_cls)
+            sent_scores = sent_scores + mask.float()
+            sent_scores = sent_scores.cpu().data.numpy()
+            print(snet_scores.shape)
+
+            selected_ids = np.argsort(-sent_scores, 1)
+
+            for i, idx in enumerate(selected_ids):
+                _pred = []
+                if (len(txt[i]) == 0):
+                    continue
+                for j in selected_ids[i][:len(txt[i])]:
+                    if (j >= len(txt[i])):
+                        continue
+                    candidate = txt[i][j].strip()
+                    if CFG.block_tri:
+                        if (not _block_tri(candidate, _pred)):
+                            _pred.append(candidate)
+                    else:
+                        _pred.append(candidate)
+
+                    if len(_pred) == 3:
+                        break
+
+                _pred = '\n'.join(_pred)
+                pred.append(_pred)
+
+        pred_fin += pred
+
+    assert len(test_ext_df) == len(pred_fin)
+
+    ss_ext_df['summary'] = pred_fin
+    assert (ss_ext_df['summary'].str.split("\n").apply(len) == 3).all()
+
+    ss_ext_df.to_csv(os.path.join(CFG.save_path, CFG.sub_name),
+                     index=False)
