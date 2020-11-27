@@ -1509,12 +1509,14 @@ if CFG.fold_ensemble:
         batch_size = src.size(0)
 
         with torch.no_grad():
-            sent_scores, mask = models[0](src, mask_src, segs, clss,
-                                      mask_cls)
-            sent_scores = sent_scores + mask.float()
-            sent_scores = sent_scores.cpu().data.numpy()
-            print(sent_scores.shape)
-
+            scores = []
+            for model in models:
+                sent_scores, mask = model(src, mask_src, segs, clss,
+                                          mask_cls)
+                sent_scores = sent_scores + mask.float()
+                sent_scores = sent_scores.cpu().data.numpy()
+                scores.append(sent_scores)
+            sent_scores = np.mean(scores, axis=0)
             selected_ids = np.argsort(-sent_scores, 1)
 
             for i, idx in enumerate(selected_ids):
