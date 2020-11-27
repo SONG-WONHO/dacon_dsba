@@ -1475,10 +1475,11 @@ if CFG.fold_ensemble:
     for i in range(CFG.n_splits):
         learner.name = f"model.fold_{i}"
         model_name = f'model.fold_{i}.best.pt'
+        print(model_name)
         learner.load(os.path.join(CFG.model_path, model_name),
                      f"model_state_dict")
 
-        model = learner.best_model.copy()
+        model = learner.best_model
         model.eval()
         models.append(model)
 
