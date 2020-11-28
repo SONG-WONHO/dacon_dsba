@@ -1326,6 +1326,8 @@ class Learner(object):
             train_iterator.set_description(
                 f"train ext:{losses.avg:.4f} abs {losses_abs.avg:.4f}, lr:{optimizer.param_groups[0]['lr']:.6f}")
 
+            break
+
         return losses.avg, losses_abs.avg
 
     def _valid_one_epoch(self, valid_loader, model):
