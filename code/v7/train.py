@@ -159,7 +159,10 @@ class DSBADataset(Dataset):
         tgt = [0]
         mask_tgt = [1]
         if not self.test:
-            tgt = self.tokenizer.encode(txt_tgt)
+            # tgt = self.tokenizer.encode(txt_tgt)
+            tokens = tokenizer.tokenize(txt_tgt)
+            tokens = ["[CLS]"] + tokens + ["[SEP]"]
+            tgt = tokenizer.convert_tokens_to_ids(tokens)
             mask_tgt = [1] * len(tgt)
 
         # augmentation
