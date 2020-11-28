@@ -1118,6 +1118,7 @@ model = get_model(CFG)
 if torch.cuda.device_count() > 1:
     model = nn.DataParallel(model)
 model = model.to(CFG.device)
+print(model)
 
 optimizer = AdamW(model.parameters(), CFG.learning_rate)
 
