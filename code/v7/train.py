@@ -1311,7 +1311,7 @@ class Learner(object):
             loss_abs = nn.NLLLoss(
                 ignore_index=self.config.pad_token_id, reduction='none')(outputs.view(-1, self.config.vocab_size), tgt.contiguous().view(-1)).mean()
             print(loss_abs)
-            
+
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -1426,8 +1426,8 @@ for fold, (tr_idx, vl_idx) in enumerate(folds.split(train_df, pd.qcut(
     train_df.loc[vl_idx, 'fold'] = fold
 
 tokenizer = BertTokenizer.from_pretrained(os.path.join(CFG.etri_path, "vocab.korean.rawtext.list"), do_lower_case=False)
-CFG.pad_token_id = tokenizer.pad_token_id
-CFG.vocab_size = tokenizer.vocab_size
+CFG.pad_token_id = tokenizer.vocab["[PAD]"]
+CFG.vocab_size = len(tokenizer.vocab)
 
 trn_dataset = DSBADataset(
     CFG, train_df[train_df['fold'] != CFG.val_fold], tokenizer, augment=True, test=False)
