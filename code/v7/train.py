@@ -1195,14 +1195,16 @@ class Learner(object):
         # training
         best_loss = 1e8
         for epoch in range(self.config.num_epochs):
-            tr_loss = self._train_one_epoch(train_loader, model, optimizer,
+            tr_loss, tr_abs_loss = self._train_one_epoch(train_loader, model, optimizer,
                                             scheduler)
-            vl_loss = self._valid_one_epoch(valid_loader, model)
+            vl_loss, vl_abs_loss = self._valid_one_epoch(valid_loader, model)
 
             # logging
             logger.loc[epoch] = [
                 np.round(tr_loss, 4),
+                np.round(tr_abs_loss, 4),
                 np.round(vl_loss, 4),
+                np.round(vl_abs_loss, 4),
                 optimizer.param_groups[0]['lr']]
 
             logger.to_csv(os.path.join(self.config.log_path,
@@ -1310,29 +1312,28 @@ class Learner(object):
 
             # abs
             tgt = tgt[:, 1:]
-            print(tgt.shape, outputs.shape)
             loss_abs = nn.NLLLoss(
                 ignore_index=self.config.pad_token_id, reduction='none')(outputs.view(-1, self.config.vocab_size), tgt.contiguous().view(-1)).mean()
-            print(loss_abs)
+            losses_abs.update(loss_abs.item(), batch_size)
 
             optimizer.zero_grad()
-            loss.backward()
+            (loss + loss_abs).backward()
             optimizer.step()
             scheduler.step()
 
             train_iterator.set_description(
-                f"train bce:{losses.avg:.4f}, lr:{optimizer.param_groups[0]['lr']:.6f}")
+                f"train ext:{losses.avg:.4f} abs {losses_abs.avg:.4f}, lr:{optimizer.param_groups[0]['lr']:.6f}")
 
-        return losses.avg
+        return losses.avg, losses_abs.avg
 
     def _valid_one_epoch(self, valid_loader, model):
         losses = AverageMeter()
-        true_final, pred_final = [], []
+        losses_abs = AverageMeter()
 
         model.eval()
 
         valid_loader = tqdm(valid_loader, leave=False)
-        for i, (src, segs, clss, mask_src, mask_cls, labels) in enumerate(
+        for i, (src, segs, clss, mask_src, mask_cls, labels, tgt, mask_tgt) in enumerate(
                 valid_loader):
             src = src.to(self.config.device)
             segs = segs.to(self.config.device)
@@ -1340,21 +1341,33 @@ class Learner(object):
             mask_src = mask_src.to(self.config.device)
             mask_cls = mask_cls.to(self.config.device)
             labels = labels.to(self.config.device)
+            tgt = tgt.to(self.config.device)
+            mask_tgt = mask_tgt.to(self.config.device)
 
             batch_size = src.size(0)
 
             with torch.no_grad():
-                preds, _ = model(src, mask_src, segs, clss, mask_cls)
+                preds, _, outputs = model(src, mask_src, segs, clss, mask_cls, tgt)
+
+                # ext
                 loss = loss_func(preds, labels)
                 loss = (loss * mask_cls.float()).mean()
                 losses.update(loss.item(), batch_size)
 
-            valid_loader.set_description(f"valid ce:{losses.avg:.4f}")
+                # abs
+                tgt = tgt[:, 1:]
+                loss_abs = nn.NLLLoss(
+                    ignore_index=self.config.pad_token_id, reduction='none')(
+                    outputs.view(-1, self.config.vocab_size),
+                    tgt.contiguous().view(-1)).mean()
+                losses_abs.update(loss_abs.item(), batch_size)
 
-        return losses.avg
+            valid_loader.set_description(f"valid ext:{losses.avg:.4f} abs {losses_abs.avg:.4f}")
+
+        return losses.avg, losses_abs.avg
 
     def _create_logger(self):
-        log_cols = ['tr_loss', 'val_loss', 'lr']
+        log_cols = ['tr_loss', 'tr_abs_loss', 'val_loss', 'val_abs_loss', 'lr']
         return pd.DataFrame(index=range(self.config.num_epochs),
                             columns=log_cols)
 
