@@ -1319,7 +1319,7 @@ class Learner(object):
             losses_abs.update(loss_abs.item(), batch_size)
 
             optimizer.zero_grad()
-            (loss + loss_abs).backward()
+            loss_abs.backward()
             optimizer.step()
             scheduler.step()
 
