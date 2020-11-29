@@ -1392,7 +1392,7 @@ class CFG:
     # train
     batch_size = 8
     learning_rate = 1e-5
-    num_epochs = 4
+    num_epochs = 16
     start_epoch = 0
     warmup_steps = 300
 
@@ -1467,6 +1467,7 @@ model = model.to(CFG.device)
 optimizer = AdamW([
                 {'params': model.bert.parameters(), 'lr': CFG.learning_rate},
                 {'params': model.decoder.parameters(), 'lr': CFG.learning_rate * 10}
+                {'params': model.generator.parameters(), 'lr': CFG.learning_rate * 10}
             ])
 
 # get scheduler
