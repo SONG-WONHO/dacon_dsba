@@ -1319,14 +1319,12 @@ class Learner(object):
             losses_abs.update(loss_abs.item(), batch_size)
 
             optimizer.zero_grad()
-            loss_abs.backward()
+            (loss + loss_abs).backward()
             optimizer.step()
             scheduler.step()
 
             train_iterator.set_description(
                 f"train ext:{losses.avg:.4f} abs {losses_abs.avg:.4f}, lr:{optimizer.param_groups[0]['lr']:.6f}")
-
-            break
 
         return losses.avg, losses_abs.avg
 
