@@ -1466,7 +1466,7 @@ model = model.to(CFG.device)
 
 optimizer = AdamW([
                 {'params': model.bert.parameters(), 'lr': CFG.learning_rate},
-                {'params': model.decoder.parameters(), 'lr': CFG.learning_rate * 10}
+                {'params': model.decoder.parameters(), 'lr': CFG.learning_rate * 10},
                 {'params': model.generator.parameters(), 'lr': CFG.learning_rate * 10}
             ])
 
