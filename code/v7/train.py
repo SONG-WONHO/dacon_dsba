@@ -219,9 +219,9 @@ def collate_fn(batch):
     labels = torch.FloatTensor(
         [b[5] + [0] * (max_len_cls - len(b[5])) for b in batch])
     tgt = torch.LongTensor(
-        [b[6] + [0] * (max_len_tgt - len(b[6])) for b in batch])[:, :256]
+        [b[6] + [0] * (max_len_tgt - len(b[6])) for b in batch])[:, :150]
     mask_tgt = torch.LongTensor(
-        [b[7] + [0] * (max_len_tgt - len(b[7])) for b in batch])[:, :256]
+        [b[7] + [0] * (max_len_tgt - len(b[7])) for b in batch])[:, :150]
 
     return src, segs, clss, mask_src, mask_cls, labels, tgt, mask_tgt
 
