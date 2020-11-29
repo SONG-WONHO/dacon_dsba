@@ -1319,12 +1319,12 @@ class Learner(object):
             losses_abs.update(loss_abs.item(), batch_size)
 
             optimizer.zero_grad()
-            (loss + loss_abs).backward()
+            (loss).backward()
             optimizer.step()
             scheduler.step()
 
             train_iterator.set_description(
-                f"train ext:{losses.avg:.4f} abs {losses_abs.avg:.4f}, lr:{optimizer.param_groups[0]['lr']:.6f}")
+                f"train ext:{losses.avg:.4f} abs {losses_abs.avg:.4f}, lr:{optimizer.param_groups[0]['lr']:.6f}, lr2:{optimizer.param_groups[1]['lr']:.6f}")
 
         return losses.avg, losses_abs.avg
 
@@ -1464,7 +1464,10 @@ if torch.cuda.device_count() > 1:
     model = nn.DataParallel(model)
 model = model.to(CFG.device)
 
-optimizer = AdamW(model.parameters(), CFG.learning_rate)
+optimizer = AdamW([
+                {'params': model.bert.parameters(), 'lr': CFG.learning_rate},
+                {'params': model.decoder.parameters(), 'lr': CFG.learning_rate * 100}
+            ])
 
 # get scheduler
 num_training_steps = int(len(trn_dataset) / CFG.batch_size) * (CFG.num_epochs)
