@@ -1319,7 +1319,7 @@ class Learner(object):
             losses_abs.update(loss_abs.item(), batch_size)
 
             optimizer.zero_grad()
-            (loss_abs).backward()
+            (loss + loss_abs).backward()
             optimizer.step()
             scheduler.step()
 
@@ -1466,6 +1466,7 @@ model = model.to(CFG.device)
 
 optimizer = AdamW([
                 {'params': model.bert.parameters(), 'lr': CFG.learning_rate},
+                {'params': model.ext_layer.parameters(), 'lr': CFG.learning_rate},
                 {'params': model.decoder.parameters(), 'lr': CFG.learning_rate * 10},
             ])
 
