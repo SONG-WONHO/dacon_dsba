@@ -1213,10 +1213,10 @@ class Learner(object):
                                        f'log.{self.name.split(".")[-1]}.csv'))
 
             # save model
-            if best_loss >= logger.loc[epoch, 'val_loss']:
+            if best_loss >= logger.loc[epoch, 'val_abs_loss']:
                 print(
-                    f"... From {best_loss:.4f} To {logger.loc[epoch, 'val_loss']:.4f}")
-                best_loss = logger.loc[epoch, 'val_loss']
+                    f"... From {best_loss:.4f} To {logger.loc[epoch, 'val_abs_loss']:.4f}")
+                best_loss = logger.loc[epoch, 'val_abs_loss']
                 self.best_model = copy.deepcopy(model)
                 name = self.name
                 self.name = f"{name}.epoch_{epoch}"
