@@ -142,7 +142,6 @@ class DSBADataset(Dataset):
 
         Returns: item
         """
-        print(self.items[idx])
         t_id, media, txt, label = self.items[idx]
 
         src = []
@@ -1114,6 +1113,10 @@ if CFG.morp:
 
 else:
     train_df, test_ext_df, test_abs_df, ss_ext_df, ss_abs_df = load_data_morp(CFG)
+
+    preprocess(train_df)
+    preprocess(test_ext_df, True)
+    preprocess(test_abs_df, True)
 
 train_df['fold'] = -1
 folds = StratifiedKFold(CFG.n_splits, shuffle=True, random_state=CFG.seed)
