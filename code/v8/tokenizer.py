@@ -14,11 +14,16 @@
 # limitations under the License.
 #
 #
-# 한국어 WordPiece 단위 BERT를 위한 Tokenization Class
+# 형태소분석 기반 BERT를 위한 Tokenization Class
 # 수정: joonho.lim
 # 일자: 2019-05-23
 #
 """Tokenization classes."""
+
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
 import collections
 import unicodedata
 import os
@@ -185,6 +190,7 @@ class BasicTokenizer(object):
     def tokenize(self, text):
         """Tokenizes a piece of text."""
         text = self._clean_text(text)
+
         ### joonho.lim @ 2019-03-15
         # # # This was added on November 1st, 2018 for the multilingual and Chinese
         # # # models. This is also applied to the English models now, but it doesn't
@@ -193,6 +199,7 @@ class BasicTokenizer(object):
         # # # characters in the vocabulary because Wikipedia does have some Chinese
         # # # words in the English Wikipedia.).
         # # text = self._tokenize_chinese_chars(text)
+
         orig_tokens = whitespace_tokenize(text)
         split_tokens = []
         for token in orig_tokens:
@@ -330,7 +337,6 @@ class WordpieceTokenizer(object):
                     ### joonho.lim @ 2019-03-15
                     # if start > 0:
                     # substr = "##" + substr
-                    # print ( '[substr]\t%s\t%s\t%d\t%d' % ( substr, substr in self.vocab, start, end))
                     if substr in self.vocab:
                         cur_substr = substr
                         break
@@ -375,3 +381,17 @@ def _is_control(char):
 def _is_punctuation(char):
     ### joonho.lim @ 2019-03-15
     return char == ' '
+
+# """Checks whether `chars` is a punctuation character."""
+# cp = ord(char)
+# # We treat all non-letter/number ASCII as punctuation.
+# # Characters such as "^", "$", and "`" are not in the Unicode
+# # Punctuation class but we treat them as punctuation anyways, for
+# # consistency.
+# if ((cp >= 33 and cp <= 47) or (cp >= 58 and cp <= 64) or
+# (cp >= 91 and cp <= 96) or (cp >= 123 and cp <= 126)):
+# return True
+# cat = unicodedata.category(char)
+# if cat.startswith("P"):
+# return True
+# return False
