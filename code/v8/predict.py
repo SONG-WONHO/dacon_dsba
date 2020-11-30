@@ -1195,6 +1195,10 @@ if CFG.morp:
 else:
     train_df, test_ext_df, test_abs_df, ss_ext_df, ss_abs_df = load_data_morp(CFG)
 
+    preprocess(train_df)
+    preprocess(test_ext_df, True)
+    preprocess(test_abs_df, True)
+
 train_df['fold'] = -1
 folds = StratifiedKFold(CFG.n_splits, shuffle=True, random_state=CFG.seed)
 for fold, (tr_idx, vl_idx) in enumerate(folds.split(train_df, pd.qcut(
