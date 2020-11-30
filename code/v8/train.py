@@ -142,6 +142,7 @@ class DSBADataset(Dataset):
 
         Returns: item
         """
+        print(self.items[idx])
         t_id, media, txt, label = self.items[idx]
 
         src = []
