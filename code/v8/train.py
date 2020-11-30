@@ -89,6 +89,20 @@ def load_data(config):
     return train_df, test_ext_df, test_abs_df, ss_ext_df, ss_abs_df
 
 
+def load_data_morp(config):
+    train_df = pd.read_csv(os.path.join(config.root_path, "train_morp.csv"))
+    test_ext_df = pd.read_csv(
+        os.path.join(config.root_path, "test_ext_morp.csv"))
+    test_abs_df = pd.read_csv(
+        os.path.join(config.root_path, "test_abs_morp.csv"))
+    ss_ext_df = pd.read_csv(
+        os.path.join(config.root_path, "sample_submission_extractive.csv"))
+    ss_abs_df = pd.read_csv(
+        os.path.join(config.root_path, "sample_submission_abstractive.csv"))
+
+    return train_df, test_ext_df, test_abs_df, ss_ext_df, ss_abs_df
+
+
 def preprocess(df, test=False):
     df['article_original'] = df['article_original'].apply(lambda v: ast.literal_eval(v))
     if not test:
@@ -1036,7 +1050,7 @@ class CFG:
     root_path = "./input/data/"
     log_path = "./log/"
     model_path = "./model/"
-    etri_path = "./input/etri/"
+    etri_path = "./input/etri_morp/"
 
     # preprocess
     max_len = 1536
@@ -1059,6 +1073,7 @@ class CFG:
     num_targets = 2
     val_fold = 0
     n_splits = 5
+    morp = False
 
 
 # get version
@@ -1087,11 +1102,17 @@ json.dump(
 ### seed all
 seed_everything(CFG.seed)
 
-train_df, test_ext_df, test_abs_df, ss_ext_df, ss_abs_df = load_data(CFG)
+if CFG.morp:
+    train_df, test_ext_df, test_abs_df, ss_ext_df, ss_abs_df = load_data(CFG)
 
-preprocess(train_df)
-preprocess(test_ext_df, True)
-preprocess(test_abs_df, True)
+    preprocess(train_df)
+    preprocess(test_ext_df, True)
+    preprocess(test_abs_df, True)
+
+    # get morp
+
+else:
+    train_df, test_ext_df, test_abs_df, ss_ext_df, ss_abs_df = load_data_morp(CFG)
 
 train_df['fold'] = -1
 folds = StratifiedKFold(CFG.n_splits, shuffle=True, random_state=CFG.seed)
@@ -1100,7 +1121,7 @@ for fold, (tr_idx, vl_idx) in enumerate(folds.split(train_df, pd.qcut(
     np.arange(0, 1.01, 0.1), labels=False))):
     train_df.loc[vl_idx, 'fold'] = fold
 
-tokenizer = BertTokenizer.from_pretrained(os.path.join(CFG.etri_path, "vocab.korean.rawtext.list"), do_lower_case=False)
+tokenizer = BertTokenizer.from_pretrained(os.path.join(CFG.etri_path, "vocab.korean_morp.list"), do_lower_case=False)
 
 trn_dataset = DSBADataset(
     CFG, train_df[train_df['fold'] != CFG.val_fold], tokenizer, augment=True, test=False)
