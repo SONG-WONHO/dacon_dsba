@@ -799,6 +799,8 @@ class BaseModel2(nn.Module):
         self.ext_layer = ExtTransformerEncoder(self.bert.config.hidden_size,
                                                2048, 8, 0.2, 1)
 
+        self.ext_layer = Classifier(self.bert.config.hidden_size)
+
         if (config.max_len > 512):
             my_pos_embeddings = nn.Embedding(config.max_len, self.bert.config.hidden_size)
             my_pos_embeddings.weight.data[:512] = self.bert.embeddings.position_embeddings.weight.data
@@ -1044,11 +1046,11 @@ class CFG:
     # model
     model_name = "BaseModel2"
     pretrained_name = "bert-base-uncased"
-    dropout = 0.2
+    dropout = 0.3
 
     # train
     batch_size = 16
-    learning_rate = 1e-5
+    learning_rate = 2e-5
     num_epochs = 4
     start_epoch = 0
     warmup_steps = 300
