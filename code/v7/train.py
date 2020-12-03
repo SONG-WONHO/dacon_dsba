@@ -21,6 +21,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
+from torch.nn.init import xavier_uniform_
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import StratifiedKFold, train_test_split
 
@@ -1345,7 +1346,7 @@ class Learner(object):
             tgt = tgt[:, 1:]
             print(tgt.shape, outputs.shape)
 
-            
+
             loss_abs = nn.NLLLoss(
                 ignore_index=self.config.pad_token_id, reduction='none')(outputs.view(-1, self.config.vocab_size), tgt.contiguous().view(-1)).mean()
             losses_abs.update(loss_abs.item(), batch_size)
