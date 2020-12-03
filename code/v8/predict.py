@@ -92,10 +92,21 @@ def load_data(config):
 
 def load_data_morp(config):
     train_df = pd.read_csv(os.path.join(config.root_path, "train_morp.csv"))
+    train_origin = pd.read_csv(os.path.join(config.root_path, "train.csv"))
+    train_df['article_original_origin'] = train_origin['article_original']
+
     test_ext_df = pd.read_csv(
         os.path.join(config.root_path, "test_ext_morp.csv"))
+    test_ext_origin = pd.read_csv(
+        os.path.join(config.root_path, "test_extractive.csv"))
+    test_ext_df['article_original_origin'] = test_ext_origin['article_original']
+
     test_abs_df = pd.read_csv(
         os.path.join(config.root_path, "test_abs_morp.csv"))
+    test_abs_origin = pd.read_csv(
+        os.path.join(config.root_path, "test_abstractive.csv"))
+    test_abs_df['article_original_origin'] = test_abs_origin['article_original']
+
     ss_ext_df = pd.read_csv(
         os.path.join(config.root_path, "sample_submission_extractive.csv"))
     ss_abs_df = pd.read_csv(
@@ -106,6 +117,7 @@ def load_data_morp(config):
 
 def preprocess(df, test=False):
     df['article_original'] = df['article_original'].apply(lambda v: ast.literal_eval(v))
+    df['article_original_origin'] = df['article_original_origin'].apply(lambda v: ast.literal_eval(v))
     if not test:
         df['extractive'] = df['extractive'].apply(lambda v: ast.literal_eval(v))
 
@@ -956,7 +968,7 @@ class DSBADataset(Dataset):
         self.df = df
         self.tokenizer = tokenizer
         self.items = df[
-            ['id', 'media', 'article_original', 'extractive']].values
+            ['id', 'media', 'article_original', 'extractive', 'article_original_origin']].values
         self.test = test
 
     def __len__(self):
@@ -974,7 +986,7 @@ class DSBADataset(Dataset):
 
         Returns: item
         """
-        t_id, media, txt, label = self.items[idx]
+        t_id, media, txt, label, txt_origin = self.items[idx]
         label_str = "\n".join([txt[l] for l in label])
 
         src = []
@@ -1005,7 +1017,7 @@ class DSBADataset(Dataset):
 
         labels = labels.numpy().tolist()
 
-        return src, segs, clss, mask_src, mask_cls, labels, txt, label_str
+        return src, segs, clss, mask_src, mask_cls, labels, txt_origin, label_str
 
 
 class DSBATestDataset(Dataset):
@@ -1021,7 +1033,7 @@ class DSBATestDataset(Dataset):
         self.config = config
         self.df = df
         self.tokenizer = tokenizer
-        self.items = df[['id', 'media', 'article_original']].values
+        self.items = df[['id', 'media', 'article_original', 'article_original_origin']].values
         self.test = test
 
     def __len__(self):
@@ -1039,7 +1051,7 @@ class DSBATestDataset(Dataset):
 
         Returns: item
         """
-        t_id, media, txt = self.items[idx]
+        t_id, media, txt, txt_origin = self.items[idx]
 
         src = []
         segs = []
@@ -1066,7 +1078,7 @@ class DSBATestDataset(Dataset):
         labels = torch.zeros(len(txt))
         labels = labels.numpy().tolist()
 
-        return src, segs, clss, mask_src, mask_cls, labels, txt, np.nan
+        return src, segs, clss, mask_src, mask_cls, labels, txt_origin, np.nan
 
 
 def collate_fn(batch):
