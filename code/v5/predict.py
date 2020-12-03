@@ -678,11 +678,13 @@ class BaseModel2(nn.Module):
         bert_config = BertConfig.from_json_file(os.path.join(config.etri_path, "config.json"))
         bert_config.attention_probs_dropout_prob = config.dropout
         bert_config.hidden_dropout_prob = config.dropout
-        self.bert = BertModel.from_pretrained(None, config=bert_config,state_dict=torch.load(os.path.join(config.etri_path, "pytorch_model.bin")))
+        self.bert = BertModel.from_pretrained(None, config=bert_config, state_dict=torch.load(os.path.join(config.etri_path, "pytorch_model.bin")))
 
         # out
         self.ext_layer = ExtTransformerEncoder(self.bert.config.hidden_size,
                                                2048, 8, 0.2, 1)
+
+        self.ext_layer = Classifier(self.bert.config.hidden_size)
 
         if (config.max_len > 512):
             my_pos_embeddings = nn.Embedding(config.max_len, self.bert.config.hidden_size)
