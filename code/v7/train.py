@@ -163,6 +163,10 @@ class DSBADataset(Dataset):
             tokens = tokenizer.tokenize(txt_tgt)
             tokens = ["[CLS]"] + tokens + ["[SEP]"]
             tgt = tokenizer.convert_tokens_to_ids(tokens)
+            if len(tgt) > 150:
+                tgt = tgt[:150]
+                tgt[-1] = 3
+
             mask_tgt = [1] * len(tgt)
 
         # augmentation
@@ -219,9 +223,9 @@ def collate_fn(batch):
     labels = torch.FloatTensor(
         [b[5] + [0] * (max_len_cls - len(b[5])) for b in batch])
     tgt = torch.LongTensor(
-        [b[6] + [0] * (max_len_tgt - len(b[6])) for b in batch])[:, :150]
+        [b[6] + [0] * (max_len_tgt - len(b[6])) for b in batch])
     mask_tgt = torch.LongTensor(
-        [b[7] + [0] * (max_len_tgt - len(b[7])) for b in batch])[:, :150]
+        [b[7] + [0] * (max_len_tgt - len(b[7])) for b in batch])
 
     return src, segs, clss, mask_src, mask_cls, labels, tgt, mask_tgt
 
@@ -1087,12 +1091,6 @@ class BaseModel2(nn.Module):
 
         self.vocab_size = self.bert.config.vocab_size
 
-        generator = nn.Sequential(
-            nn.Linear(768, self.vocab_size),
-            nn.LogSoftmax(dim=-1)
-        )
-        self.generator = generator.to(self.config.device)
-
         tgt_emb = nn.Embedding(
             self.vocab_size, self.bert.config.hidden_size,
             padding_idx=self.bert.config.pad_token_id)
@@ -1102,6 +1100,36 @@ class BaseModel2(nn.Module):
         self.decoder = TransformerDecoder(
             6, 768, 8, d_ff=2048, dropout=0.2, embeddings=tgt_emb)
 
+        generator = nn.Sequential(
+            nn.Linear(768, self.vocab_size),
+            nn.LogSoftmax(dim=-1)
+        )
+        self.generator = generator.to(self.config.device)
+        self.generator[0].weight = self.decoder.embeddings.weight
+
+        # init decoder weight
+        for module in self.decoder.modules():
+            if isinstance(module, (nn.Linear, nn.Embedding)):
+                module.weight.data.normal_(mean=0.0, std=0.02)
+            elif isinstance(module, nn.LayerNorm):
+                module.bias.data.zero_()
+                module.weight.data.fill_(1.0)
+            if isinstance(module, nn.Linear) and module.bias is not None:
+                module.bias.data.zero_()
+
+        for p in self.generator.parameters():
+            if p.dim() > 1:
+                xavier_uniform_(p)
+            else:
+                p.data.zero_()
+
+        tgt_emb = nn.Embedding(
+            self.vocab_size, self.bert.config.hidden_size,
+            padding_idx=self.bert.config.pad_token_id)
+        tgt_emb.weight = copy.deepcopy(
+            self.bert.embeddings.word_embeddings.weight)
+
+        self.decoder.embeddings = tgt_emb
         self.generator[0].weight = self.decoder.embeddings.weight
 
         # out
@@ -1120,6 +1148,7 @@ class BaseModel2(nn.Module):
     def forward(self, src, mask_src, segs, clss, mask_cls, tgt):
         # (last_hidden_state, pooler_output, hidden_states, attentions)
         top_vec, _ = self.bert(src, mask_src, segs)
+
         # abstract
         dec_state = self.decoder.init_decoder_state(src, top_vec)
         decoder_outputs, state = self.decoder(tgt[:, :-1], top_vec, dec_state)
@@ -1314,6 +1343,9 @@ class Learner(object):
 
             # abs
             tgt = tgt[:, 1:]
+            print(tgt.shape, outputs.shape)
+
+            
             loss_abs = nn.NLLLoss(
                 ignore_index=self.config.pad_token_id, reduction='none')(outputs.view(-1, self.config.vocab_size), tgt.contiguous().view(-1)).mean()
             losses_abs.update(loss_abs.item(), batch_size)
