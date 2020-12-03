@@ -1348,7 +1348,7 @@ class Learner(object):
             loss_abs = nn.NLLLoss(ignore_index=self.config.pad_token_id, reduction='none')(
                 outputs.view(-1, self.config.vocab_size), tgt.contiguous().view(-1)).view(batch_size, -1)
             print(loss_abs.shape)
-            print(loss_abs)
+            print(loss_abs.sum(-1).shape)
             losses_abs.update(loss_abs.item(), batch_size)
 
             optimizer.zero_grad()
