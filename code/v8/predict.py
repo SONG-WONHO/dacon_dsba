@@ -987,7 +987,7 @@ class DSBADataset(Dataset):
         Returns: item
         """
         t_id, media, txt, label, txt_origin = self.items[idx]
-        label_str = "\n".join([txt[l] for l in label])
+        label_str = "\n".join([txt_origin[l] for l in label])
 
         src = []
         segs = []
