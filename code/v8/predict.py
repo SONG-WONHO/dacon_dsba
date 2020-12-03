@@ -1314,7 +1314,6 @@ for fold in range(CFG.n_splits):
                             pred.append(_pred)
                             gold.append(label_str[i])
 
-                    print(gold, pred)
                     gold_fin += gold
                     pred_fin += pred
                     valid_loader.set_description(f"valid ce:{losses.avg:.4f}")
