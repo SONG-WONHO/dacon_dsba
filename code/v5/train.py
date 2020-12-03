@@ -162,7 +162,7 @@ class DSBADataset(Dataset):
             cands = []
             clss, num_tokens = np.asarray(clss), np.asarray(num_tokens)
             for i, n in enumerate(clss):
-                j = np.where(num_tokens - n <= 512)[0][-1] + 1
+                j = np.where(num_tokens - n <= 1024)[0][-1] + 1
                 cands.append((i, j, sum(labels[i:j])))
             max_num = max([c[-1] for c in cands])
             cands = [c for c in cands if c[-1] == max_num]
