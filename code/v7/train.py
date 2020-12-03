@@ -1390,11 +1390,14 @@ class Learner(object):
 
                 # abs
                 tgt = tgt[:, 1:]
-                loss_abs = nn.NLLLoss(
-                    ignore_index=self.config.pad_token_id, reduction='none')(
+                loss_abs = nn.NLLLoss(ignore_index=self.config.pad_token_id,
+                                      reduction='none')(
                     outputs.view(-1, self.config.vocab_size),
-                    tgt.contiguous().view(-1)).mean()
+                    tgt.contiguous().view(-1)).view(batch_size, -1)
+                loss_abs = (loss_abs.sum(-1) / mask_tgt.sum(-1)).mean()
                 losses_abs.update(loss_abs.item(), batch_size)
+
+            losses_abs.update(loss_abs.item(), batch_size)
 
             valid_loader.set_description(f"valid ext:{losses.avg:.4f} abs {losses_abs.avg:.4f}")
 
@@ -1419,12 +1422,12 @@ class CFG:
     # model
     model_name = "BaseModel2"
     pretrained_name = "bert-base-uncased"
-    dropout = 0.2
+    dropout = 0.3
 
     # train
-    batch_size = 8
+    batch_size = 16
     learning_rate = 1e-5
-    num_epochs = 16
+    num_epochs = 32
     start_epoch = 0
     warmup_steps = 300
 
@@ -1495,7 +1498,6 @@ model = get_model(CFG)
 
 optimizer = AdamW([
                 {'params': model.bert.parameters(), 'lr': CFG.learning_rate},
-                {'params': model.ext_layer.parameters(), 'lr': CFG.learning_rate},
                 {'params': model.decoder.parameters(), 'lr': CFG.learning_rate * 10},
             ])
 
