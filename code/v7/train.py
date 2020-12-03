@@ -1493,15 +1493,16 @@ print("Sample: ", tokenizer.convert_ids_to_tokens(d[0][1].numpy()))
 # get model
 print(f"Get Model: {CFG.model_name}")
 model = get_model(CFG)
-if torch.cuda.device_count() > 1:
-    model = nn.DataParallel(model)
-model = model.to(CFG.device)
 
 optimizer = AdamW([
                 {'params': model.bert.parameters(), 'lr': CFG.learning_rate},
                 {'params': model.ext_layer.parameters(), 'lr': CFG.learning_rate},
                 {'params': model.decoder.parameters(), 'lr': CFG.learning_rate * 10},
             ])
+
+if torch.cuda.device_count() > 1:
+    model = nn.DataParallel(model)
+model = model.to(CFG.device)
 
 # get scheduler
 num_training_steps = int(len(trn_dataset) / CFG.batch_size) * (CFG.num_epochs)
