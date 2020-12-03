@@ -1063,7 +1063,7 @@ def collate_fn(batch):
     """
 
     # max length
-    max_len = min(max([len(b[0]) for b in batch]), CFG.max_len)
+    max_len =max([len(b[0]) for b in batch])
     max_len_cls = max([len(b[2]) for b in batch])
 
     # encoded
