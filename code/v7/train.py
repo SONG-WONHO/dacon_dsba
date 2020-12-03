@@ -1351,6 +1351,8 @@ class Learner(object):
                 ignore_index=self.config.pad_token_id, reduction='none')(outputs.view(-1, self.config.vocab_size), tgt.contiguous().view(-1))
             print(loss_abs.shape)
             print(loss_abs)
+            print(mask_tgt.shape)
+            print(mask_tgt)
             losses_abs.update(loss_abs.item(), batch_size)
 
             optimizer.zero_grad()
