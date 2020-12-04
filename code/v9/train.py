@@ -27,7 +27,7 @@ from sklearn.model_selection import StratifiedKFold, train_test_split
 
 from transformers import BertModel, BertConfig
 from transformers import AdamW, get_linear_schedule_with_warmup
-from tokenizer import BertTokenizer
+from kobert_transformers.tokenization_kobert import KoBertTokenizer
 
 
 warnings.filterwarnings("ignore")
@@ -140,10 +140,12 @@ class DSBADataset(Dataset):
 
         num = 0
         for i, sent in enumerate(txt):
-            # sent = self.tokenizer.encode(sent)
+            sent = self.tokenizer.encode(sent)
+            """
             tokens = tokenizer.tokenize(sent)
             tokens = ["[CLS]"] + tokens + ["[SEP]"]
             sent = tokenizer.convert_tokens_to_ids(tokens)
+            """
 
             src += sent
             segs += [i % 2] * len(sent)
@@ -160,10 +162,12 @@ class DSBADataset(Dataset):
         tgt = [0]
         mask_tgt = [1]
         if not self.test:
-            # tgt = self.tokenizer.encode(txt_tgt)
+            tgt = self.tokenizer.encode(txt_tgt)
+            """
             tokens = tokenizer.tokenize(txt_tgt)
             tokens = ["[CLS]"] + tokens + ["[SEP]"]
             tgt = tokenizer.convert_tokens_to_ids(tokens)
+            """
             if len(tgt) > 150:
                 tgt = tgt[:150]
                 tgt[-1] = 3
@@ -213,7 +217,7 @@ def collate_fn(batch):
     max_len_tgt = max([len(b[7]) for b in batch])
 
     # encoded
-    src = torch.LongTensor([b[0] + [0] * (max_len - len(b[0])) for b in batch])
+    src = torch.LongTensor([b[0] + [1] * (max_len - len(b[0])) for b in batch])
     segs = torch.LongTensor([b[1] + [0] * (max_len - len(b[1])) for b in batch])
     clss = torch.LongTensor(
         [b[2] + [0] * (max_len_cls - len(b[2])) for b in batch])
@@ -224,7 +228,7 @@ def collate_fn(batch):
     labels = torch.FloatTensor(
         [b[5] + [0] * (max_len_cls - len(b[5])) for b in batch])
     tgt = torch.LongTensor(
-        [b[6] + [0] * (max_len_tgt - len(b[6])) for b in batch])
+        [b[6] + [1] * (max_len_tgt - len(b[6])) for b in batch])
     mask_tgt = torch.LongTensor(
         [b[7] + [0] * (max_len_tgt - len(b[7])) for b in batch])
 
@@ -1084,11 +1088,15 @@ class BaseModel2(nn.Module):
         self.config = config
 
         # bert encoder
+        """
         print(f"... {config.etri_path}")
         bert_config = BertConfig.from_json_file(os.path.join(config.etri_path, "config.json"))
         bert_config.attention_probs_dropout_prob = config.dropout
         bert_config.hidden_dropout_prob = config.dropout
         self.bert = BertModel.from_pretrained(None, config=bert_config, state_dict=torch.load(os.path.join(config.etri_path, "pytorch_model.bin")))
+        """
+        # bert encoder
+        self.bert = BertModel.from_pretrained('monologg/kobert')
 
         self.vocab_size = self.bert.config.vocab_size
 
@@ -1478,9 +1486,9 @@ for fold, (tr_idx, vl_idx) in enumerate(folds.split(train_df, pd.qcut(
     np.arange(0, 1.01, 0.1), labels=False))):
     train_df.loc[vl_idx, 'fold'] = fold
 
-tokenizer = BertTokenizer.from_pretrained(os.path.join(CFG.etri_path, "vocab.korean.rawtext.list"), do_lower_case=False)
-CFG.pad_token_id = tokenizer.vocab["[PAD]"]
-CFG.vocab_size = len(tokenizer.vocab)
+tokenizer = KoBertTokenizer.from_pretrained('monologg/kobert')
+CFG.pad_token_id = tokenizer.pad_token_id
+CFG.vocab_size = tokenizer.vocab_size
 
 trn_dataset = DSBADataset(
     CFG, train_df[train_df['fold'] != CFG.val_fold], tokenizer, augment=True, test=False)
