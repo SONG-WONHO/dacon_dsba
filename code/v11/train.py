@@ -133,8 +133,10 @@ class DSBADataset(Dataset):
         src = []
         segs = []
         clss = []
+        seps = []
         mask_src = []
         mask_cls = []
+        mask_sep = []
         num_tokens = []
 
         num = 0
@@ -149,8 +151,10 @@ class DSBADataset(Dataset):
             clss.append(num)
             mask_src += [1] * len(sent)
             mask_cls.append(1)
+            mask_sep.append(1)
             num += len(sent)
             num_tokens.append(num)
+            seps.append(num - 1)
 
         labels = torch.zeros(len(txt))
         if not self.test: labels[label] = 1
@@ -174,12 +178,18 @@ class DSBADataset(Dataset):
             mask_src = mask_src[clss[cand[0]]: num_tokens[:cand[1]][-1]]
             segs = segs[clss[cand[0]]: num_tokens[:cand[1]][-1]]
             clss = clss[cand[0]: cand[1]]
-            clss -= clss[0]
+            logit = clss[0]
+            clss -= logit
             clss = clss.tolist()
+            seps = np.asarray(seps)
+            seps = seps[cand[0]: cand[1]]
+            seps -= logit
+            seps = seps.tolist()
             labels = labels[cand[0]: cand[1]]
             mask_cls = mask_cls[cand[0]: cand[1]]
+            mask_sep = mask_sep[cand[0]: cand[1]]
 
-        return src, segs, clss, mask_src, mask_cls, labels
+        return src, segs, clss, mask_src, mask_cls, labels, seps, mask_sep
 
 
 def collate_fn(batch):
@@ -207,8 +217,12 @@ def collate_fn(batch):
         [b[4] + [0] * (max_len_cls - len(b[4])) for b in batch])
     labels = torch.FloatTensor(
         [b[5] + [0] * (max_len_cls - len(b[5])) for b in batch])
+    seps = torch.LongTensor(
+        [b[6] + [0] * (max_len_cls - len(b[6])) for b in batch])
+    mask_sep = torch.LongTensor(
+        [b[7] + [0] * (max_len_cls - len(b[7])) for b in batch])
 
-    return src, segs, clss, mask_src, mask_cls, labels
+    return src, segs, clss, mask_src, mask_cls, labels, sep, mask_sep
 
 
 def aeq(*args):
@@ -800,7 +814,7 @@ class BaseModel2(nn.Module):
         #                                        1024, 4, 0.2, 2)
 
         # original
-        self.ext_layer = Classifier(self.bert.config.hidden_size)
+        self.ext_layer = Classifier(self.bert.config.hidden_size * 2)
 
         if (config.max_len > 512):
             my_pos_embeddings = nn.Embedding(config.max_len, self.bert.config.hidden_size)
@@ -809,12 +823,22 @@ class BaseModel2(nn.Module):
             self.bert.embeddings.position_embeddings = my_pos_embeddings
             self.bert.embeddings.position_ids = torch.arange(config.max_len).expand((1, -1))
 
-    def forward(self, src, mask_src, segs, clss, mask_cls):
+    def forward(self, src, mask_src, segs, clss, mask_cls, seps, mask_sep):
         # (last_hidden_state, pooler_output, hidden_states, attentions)
         top_vec, _ = self.bert(src, mask_src, segs)
-        sents_vec = top_vec[torch.arange(top_vec.size(0)).unsqueeze(1), clss]
-        sents_vec = sents_vec * mask_cls[:, :, None].float()
+
+        # cls out
+        sents_vec_cls = top_vec[torch.arange(top_vec.size(0)).unsqueeze(1), clss]
+        sents_vec_cls = sents_vec_cls * mask_cls[:, :, None].float()
+
+        # sep out
+        sents_vec_sep = top_vec[torch.arange(top_vec.size(0)).unsqueeze(1), seps]
+        sents_vec_sep = sents_vec_sep * mask_sep[:, :, None].float()
+
+        sents_vec = torch.cat([sents_vec_cls, sents_vec_sep], dim=-1)
+        print(sents_vec.shape)
         sent_scores = self.ext_layer(sents_vec, mask_cls)
+
         return sent_scores, mask_cls
 
 
@@ -975,17 +999,19 @@ class Learner(object):
 
         model.train()
         train_iterator = tqdm(train_loader, leave=False)
-        for src, segs, clss, mask_src, mask_cls, labels in train_iterator:
+        for src, segs, clss, mask_src, mask_cls, labels, seps, mask_sep in train_iterator:
             src = src.to(self.config.device)
             segs = segs.to(self.config.device)
             clss = clss.to(self.config.device)
             mask_src = mask_src.to(self.config.device)
             mask_cls = mask_cls.to(self.config.device)
             labels = labels.to(self.config.device)
+            seps = seps.to(self.config.device)
+            mask_sep = mask_sep.to(self.config.device)
 
             batch_size = src.size(0)
 
-            preds, _ = model(src, mask_src, segs, clss, mask_cls)
+            preds, _ = model(src, mask_src, segs, clss, mask_cls, seps, mask_sep)
             loss = loss_func(preds, labels)
             loss = (loss * mask_cls.float()).mean()
             losses.update(loss.item(), batch_size)
@@ -1007,7 +1033,7 @@ class Learner(object):
         model.eval()
 
         valid_loader = tqdm(valid_loader, leave=False)
-        for i, (src, segs, clss, mask_src, mask_cls, labels) in enumerate(
+        for i, (src, segs, clss, mask_src, mask_cls, labels, seps, mask_sep) in enumerate(
                 valid_loader):
             src = src.to(self.config.device)
             segs = segs.to(self.config.device)
@@ -1015,11 +1041,13 @@ class Learner(object):
             mask_src = mask_src.to(self.config.device)
             mask_cls = mask_cls.to(self.config.device)
             labels = labels.to(self.config.device)
+            seps = seps.to(self.config.device)
+            mask_sep = mask_sep.to(self.config.device)
 
             batch_size = src.size(0)
 
             with torch.no_grad():
-                preds, _ = model(src, mask_src, segs, clss, mask_cls)
+                preds, _ = model(src, mask_src, segs, clss, mask_cls, seps, mask_sep)
                 loss = loss_func(preds, labels)
                 loss = (loss * mask_cls.float()).mean()
                 losses.update(loss.item(), batch_size)
