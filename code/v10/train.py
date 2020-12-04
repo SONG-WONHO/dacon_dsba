@@ -1518,7 +1518,7 @@ model.bert.load_state_dict(
      in state_dict.items()
      if k.startswith("bert.")})
 
-assert (model.bert.embeddings.word_embeddings.weight == state_dict['bert.embeddings.word_embeddings.weight']).all()
+assert (model.bert.embeddings.word_embeddings.weight == state_dict['bert.embeddings.word_embeddings.weight'].to(CFG.device)).all()
 
 # get scheduler
 num_training_steps = int(len(trn_dataset) / CFG.batch_size) * (CFG.num_epochs)
