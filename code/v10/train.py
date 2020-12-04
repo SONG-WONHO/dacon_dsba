@@ -1513,7 +1513,7 @@ model.bert.load_state_dict(
     {k.replace("bert.", ""): v
      for k, v
      in state_dict.items()
-     if k.startswith("bert.")}, map_location="cpu")
+     if k.startswith("bert.")})
 
 if torch.cuda.device_count() > 1:
     model = nn.DataParallel(model)
