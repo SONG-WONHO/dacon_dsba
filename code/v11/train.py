@@ -222,7 +222,7 @@ def collate_fn(batch):
     mask_sep = torch.LongTensor(
         [b[7] + [0] * (max_len_cls - len(b[7])) for b in batch])
 
-    return src, segs, clss, mask_src, mask_cls, labels, sep, mask_sep
+    return src, segs, clss, mask_src, mask_cls, labels, seps, mask_sep
 
 
 def aeq(*args):
