@@ -1500,11 +1500,6 @@ print("Sample: ", tokenizer.convert_ids_to_tokens(d[0][1].numpy()))
 print(f"Get Model: {CFG.model_name}")
 model = get_model(CFG)
 
-optimizer = AdamW([
-                {'params': model.bert.parameters(), 'lr': CFG.learning_rate},
-                {'params': model.decoder.parameters(), 'lr': CFG.learning_rate * 10},
-            ])
-
 # load ext weight
 print("load bert weight")
 state_dict = torch.load(os.path.join("model", f"v{CFG.ext_version}", f"exp_{CFG.ext_exp_id}", f"model.fold_{CFG.val_fold}.best.pt"))['model_state_dict']
@@ -1514,6 +1509,11 @@ model.bert.load_state_dict(
      for k, v
      in state_dict.items()
      if k.startswith("bert.")})
+
+optimizer = AdamW([
+                {'params': model.bert.parameters(), 'lr': CFG.learning_rate},
+                {'params': model.decoder.parameters(), 'lr': CFG.learning_rate * 10},
+            ])
 
 if torch.cuda.device_count() > 1:
     model = nn.DataParallel(model)
