@@ -836,7 +836,6 @@ class BaseModel2(nn.Module):
         sents_vec_sep = sents_vec_sep * mask_sep[:, :, None].float()
 
         sents_vec = torch.cat([sents_vec_cls, sents_vec_sep], dim=-1)
-        print(sents_vec.shape)
         sent_scores = self.ext_layer(sents_vec, mask_cls)
 
         return sent_scores, mask_cls
