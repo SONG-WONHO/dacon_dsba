@@ -1505,22 +1505,20 @@ optimizer = AdamW([
                 {'params': model.decoder.parameters(), 'lr': CFG.learning_rate * 10},
             ])
 
+# load ext weight
+print("load bert weight")
+state_dict = torch.load(os.path.join("model", f"v{CFG.ext_version}", f"exp_{CFG.ext_exp_id}", f"model.fold_{CFG.val_fold}.best.pt"))['model_state_dict']
+
+model.bert.load_state_dict(
+    {k.replace("bert.", ""): v
+     for k, v
+     in state_dict.items()
+     if k.startswith("bert.")}, map_location="cpu")
+
 if torch.cuda.device_count() > 1:
     model = nn.DataParallel(model)
 model = model.to(CFG.device)
 
-# load ext weight
-print("load bert weight")
-# state_dict = torch.load(os.path.join("model", f"v{CFG.ext_version}", f"exp_{CFG.ext_exp_id}", f"model.fold_{CFG.val_fold}.best.pt"))['model_state_dict']
-#
-# model.bert.load_state_dict(
-#     {k.replace("bert.", ""): v
-#      for k, v
-#      in state_dict.items()
-#      if k.startswith("bert.")})
-#
-# model = model.to(CFG.device)
-#
 # assert (model.bert.embeddings.word_embeddings.weight == state_dict['bert.embeddings.word_embeddings.weight'].to(CFG.device)).all()
 
 # get scheduler
