@@ -1088,7 +1088,7 @@ class CFG:
     workers = 8
     num_targets = 2
     val_fold = 0
-    n_splits = 11
+    n_splits = 5
 
 
 # get version
