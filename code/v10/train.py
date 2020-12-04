@@ -1514,7 +1514,7 @@ print("load bert weight")
 model.bert.load_state_dict(
     {k.replace("bert.", ""): v
      for k, v
-     in torch.load(os.path.join("model", f"v{CFG.ext_version}", f"{CFG.ext_exp_id}", f"model.fold_{CFG.val_fold}.best.pt"))['model_state_dict'].items()
+     in torch.load(os.path.join("model", f"v{CFG.ext_version}", f"exp_{CFG.ext_exp_id}", f"model.fold_{CFG.val_fold}.best.pt"))['model_state_dict'].items()
      if k.startswith("bert.")})
 
 # get scheduler
