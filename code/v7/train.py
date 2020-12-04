@@ -1099,7 +1099,7 @@ class BaseModel2(nn.Module):
             self.bert.embeddings.word_embeddings.weight)
 
         self.decoder = TransformerDecoder(
-            6, 768, 8, d_ff=2048, dropout=0.2, embeddings=tgt_emb)
+            8, 768, 8, d_ff=2048, dropout=0.2, embeddings=tgt_emb)
 
         generator = nn.Sequential(
             nn.Linear(768, self.vocab_size),
@@ -1427,7 +1427,7 @@ class CFG:
     # train
     batch_size = 16
     learning_rate = 1e-5
-    num_epochs = 32
+    num_epochs = 12
     start_epoch = 0
     warmup_steps = 300
 
