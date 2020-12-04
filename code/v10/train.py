@@ -1438,6 +1438,10 @@ class CFG:
     val_fold = 0
     n_splits = 5
 
+    # ext
+    ext_version = 5
+    ext_exp_id = 1
+
 
 # get version
 _, version, _ = sys.argv[0].split('/')
@@ -1504,6 +1508,14 @@ optimizer = AdamW([
 if torch.cuda.device_count() > 1:
     model = nn.DataParallel(model)
 model = model.to(CFG.device)
+
+# load ext weight
+print("load bert weight")
+model.bert.load_state_dict(
+    {k.replace("bert.", ""): v
+     for k, v
+     in torch.load(os.path.join("model", f"v{CFG.ext_version}", f"{CFG.ext_exp_id}", f"model.fold_{CFG.val_fold}.best.pt"))['model_state_dict'].items()
+     if k.startswith("bert.")})
 
 # get scheduler
 num_training_steps = int(len(trn_dataset) / CFG.batch_size) * (CFG.num_epochs)
