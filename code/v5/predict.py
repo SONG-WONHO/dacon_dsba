@@ -682,9 +682,9 @@ class BaseModel2(nn.Module):
 
         # out
         self.ext_layer = ExtTransformerEncoder(self.bert.config.hidden_size,
-                                               2048, 8, 0.2, 1)
+                                               1024, 4, 0.2, 2)
 
-        self.ext_layer = Classifier(self.bert.config.hidden_size)
+        # self.ext_layer = Classifier(self.bert.config.hidden_size)
 
         if (config.max_len > 512):
             my_pos_embeddings = nn.Embedding(config.max_len, self.bert.config.hidden_size)
