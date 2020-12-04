@@ -796,11 +796,11 @@ class BaseModel2(nn.Module):
         self.bert = BertModel.from_pretrained(None, config=bert_config, state_dict=torch.load(os.path.join(config.etri_path, "pytorch_model.bin")))
 
         # out
-        self.ext_layer = ExtTransformerEncoder(self.bert.config.hidden_size,
-                                               1024, 4, 0.2, 2)
+        # self.ext_layer = ExtTransformerEncoder(self.bert.config.hidden_size,
+        #                                        1024, 4, 0.2, 2)
 
         # original
-        # self.ext_layer = Classifier(self.bert.config.hidden_size)
+        self.ext_layer = Classifier(self.bert.config.hidden_size)
 
         if (config.max_len > 512):
             my_pos_embeddings = nn.Embedding(config.max_len, self.bert.config.hidden_size)
@@ -1061,7 +1061,7 @@ class CFG:
     workers = 8
     num_targets = 2
     val_fold = 0
-    n_splits = 5
+    n_splits = 11
 
 
 # get version
