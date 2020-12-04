@@ -1512,11 +1512,6 @@ model = model.to(CFG.device)
 # load ext weight
 print("load bert weight")
 state_dict = torch.load(os.path.join("model", f"v{CFG.ext_version}", f"exp_{CFG.ext_exp_id}", f"model.fold_{CFG.val_fold}.best.pt"))['model_state_dict']
-state_dict = {
-    k.replace("module.", ""): v
-    for k, v
-    in state_dict.items()
-    if k.startswith("module.")}
 
 model.bert.load_state_dict(
     {k.replace("bert.", ""): v
