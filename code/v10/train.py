@@ -1511,15 +1511,17 @@ model = model.to(CFG.device)
 
 # load ext weight
 print("load bert weight")
-state_dict = torch.load(os.path.join("model", f"v{CFG.ext_version}", f"exp_{CFG.ext_exp_id}", f"model.fold_{CFG.val_fold}.best.pt"))['model_state_dict']
-
-model.bert.load_state_dict(
-    {k.replace("bert.", ""): v
-     for k, v
-     in state_dict.items()
-     if k.startswith("bert.")})
-
-assert (model.bert.embeddings.word_embeddings.weight == state_dict['bert.embeddings.word_embeddings.weight'].to(CFG.device)).all()
+# state_dict = torch.load(os.path.join("model", f"v{CFG.ext_version}", f"exp_{CFG.ext_exp_id}", f"model.fold_{CFG.val_fold}.best.pt"))['model_state_dict']
+#
+# model.bert.load_state_dict(
+#     {k.replace("bert.", ""): v
+#      for k, v
+#      in state_dict.items()
+#      if k.startswith("bert.")})
+#
+# model = model.to(CFG.device)
+#
+# assert (model.bert.embeddings.word_embeddings.weight == state_dict['bert.embeddings.word_embeddings.weight'].to(CFG.device)).all()
 
 # get scheduler
 num_training_steps = int(len(trn_dataset) / CFG.batch_size) * (CFG.num_epochs)
