@@ -1123,13 +1123,7 @@ if torch.cuda.device_count() > 1:
 model = model.to(CFG.device)
 
 # original
-# optimizer = AdamW(model.parameters(), CFG.learning_rate)
-
-# new
-optimizer = AdamW([
-                {'params': model.bert.parameters(), 'lr': CFG.learning_rate},
-                {'params': model.ext_layer.parameters(), 'lr': CFG.learning_rate * 2},
-            ])
+optimizer = AdamW(model.parameters(), CFG.learning_rate)
 
 # get scheduler
 num_training_steps = int(len(trn_dataset) / CFG.batch_size) * (CFG.num_epochs)
