@@ -1383,7 +1383,6 @@ for fold in range(CFG.n_splits):
                             pred.append(_pred)
 
                     pred_fin += pred
-                    break
 
                 with open(f'scores_{args.version}_{args.exp_id}.pkl', 'wb') as f:
                     pickle.dump(sent_scores_fin, f)
