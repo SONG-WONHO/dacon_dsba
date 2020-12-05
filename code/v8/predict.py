@@ -1256,6 +1256,7 @@ for fold in range(CFG.n_splits):
                 return False
 
             if CFG.validation:
+                print(train_df[train_df['fold'] == CFG.val_fold].head())
                 val_dataset = DSBADataset(
                     CFG, train_df[train_df['fold'] == CFG.val_fold], tokenizer,
                     False)
