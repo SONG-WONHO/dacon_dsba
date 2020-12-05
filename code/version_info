@@ -23,3 +23,6 @@ v10:
 v11:
     - More dimension (cls + sep)
     - Based v5
+v12:
+    - Shuffle sentences which has zero labels
+    - Based 11
