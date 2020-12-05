@@ -1078,8 +1078,8 @@ class CFG:
 
     # train
     batch_size = 16
-    learning_rate = 5e-6
-    num_epochs = 6
+    learning_rate = 2e-5
+    num_epochs = 4
     start_epoch = 0
     warmup_steps = 300
 
