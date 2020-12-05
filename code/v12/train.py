@@ -130,7 +130,7 @@ class DSBADataset(Dataset):
         """
         t_id, media, txt, label = self.items[idx]
 
-        if (not self.test) and (np.random.random() < 0.5):
+        if self.augment and (np.random.random() < 0.5):
             origin = np.arange(0, len(txt))
             shuffled_idx = [v for v in origin if v not in label]
             origin[shuffled_idx] = np.random.permutation(shuffled_idx)
