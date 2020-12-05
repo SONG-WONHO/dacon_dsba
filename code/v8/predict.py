@@ -13,6 +13,7 @@ import warnings
 import argparse
 from tqdm import tqdm
 from pprint import pprint
+import pickle
 
 from rouge import Rouge
 import numpy as np
