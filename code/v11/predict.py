@@ -1278,6 +1278,7 @@ for fold in range(CFG.n_splits):
 
                         sent_scores = sent_scores + mask.float()
                         sent_scores = sent_scores.cpu().data.numpy()
+                        print(sent_scores.shape)
                         selected_ids = np.argsort(-sent_scores, 1)
 
                         for i, idx in enumerate(selected_ids):
