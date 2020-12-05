@@ -684,7 +684,8 @@ class BaseModel2(nn.Module):
         # self.ext_layer = ExtTransformerEncoder(self.bert.config.hidden_size,
         #                                        1024, 4, 0.2, 2)
 
-        self.ext_layer = Classifier(self.bert.config.hidden_size)
+        # original
+        self.ext_layer = Classifier(self.bert.config.hidden_size * 2)
 
         if (config.max_len > 512):
             my_pos_embeddings = nn.Embedding(config.max_len, self.bert.config.hidden_size)
@@ -693,12 +694,21 @@ class BaseModel2(nn.Module):
             self.bert.embeddings.position_embeddings = my_pos_embeddings
             self.bert.embeddings.position_ids = torch.arange(config.max_len).expand((1, -1))
 
-    def forward(self, src, mask_src, segs, clss, mask_cls):
+    def forward(self, src, mask_src, segs, clss, mask_cls, seps, mask_sep):
         # (last_hidden_state, pooler_output, hidden_states, attentions)
         top_vec, _ = self.bert(src, mask_src, segs)
-        sents_vec = top_vec[torch.arange(top_vec.size(0)).unsqueeze(1), clss]
-        sents_vec = sents_vec * mask_cls[:, :, None].float()
+
+        # cls out
+        sents_vec_cls = top_vec[torch.arange(top_vec.size(0)).unsqueeze(1), clss]
+        sents_vec_cls = sents_vec_cls * mask_cls[:, :, None].float()
+
+        # sep out
+        sents_vec_sep = top_vec[torch.arange(top_vec.size(0)).unsqueeze(1), seps]
+        sents_vec_sep = sents_vec_sep * mask_sep[:, :, None].float()
+
+        sents_vec = torch.cat([sents_vec_cls, sents_vec_sep], dim=-1)
         sent_scores = self.ext_layer(sents_vec, mask_cls)
+
         return sent_scores, mask_cls
 
 
@@ -966,8 +976,10 @@ class DSBADataset(Dataset):
         src = []
         segs = []
         clss = []
+        seps = []
         mask_src = []
         mask_cls = []
+        mask_sep = []
         num_tokens = []
 
         num = 0
@@ -982,8 +994,10 @@ class DSBADataset(Dataset):
             clss.append(num)
             mask_src += [1] * len(sent)
             mask_cls.append(1)
+            mask_sep.append(1)
             num += len(sent)
             num_tokens.append(num)
+            seps.append(num - 1)
 
         labels = torch.zeros(len(txt))
         if not self.test:
@@ -991,7 +1005,7 @@ class DSBADataset(Dataset):
 
         labels = labels.numpy().tolist()
 
-        return src, segs, clss, mask_src, mask_cls, labels, txt, label_str
+        return src, segs, clss, mask_src, mask_cls, labels, txt, label_str, seps, mask_sep
 
 
 class DSBATestDataset(Dataset):
@@ -1030,8 +1044,10 @@ class DSBATestDataset(Dataset):
         src = []
         segs = []
         clss = []
+        seps = []
         mask_src = []
         mask_cls = []
+        mask_sep = []
         num_tokens = []
 
         num = 0
@@ -1046,13 +1062,15 @@ class DSBATestDataset(Dataset):
             clss.append(num)
             mask_src += [1] * len(sent)
             mask_cls.append(1)
+            mask_sep.append(1)
             num += len(sent)
             num_tokens.append(num)
+            seps.append(num - 1)
 
         labels = torch.zeros(len(txt))
         labels = labels.numpy().tolist()
 
-        return src, segs, clss, mask_src, mask_cls, labels, txt, np.nan
+        return src, segs, clss, mask_src, mask_cls, labels, txt, np.nan, seps, mask_sep
 
 
 def collate_fn(batch):
@@ -1081,8 +1099,12 @@ def collate_fn(batch):
         [b[5] + [0] * (max_len_cls - len(b[5])) for b in batch])
     txt = [b[6] for b in batch]
     label_str = [b[7] for b in batch]
+    seps = torch.LongTensor(
+        [b[8] + [0] * (max_len_cls - len(b[8])) for b in batch])
+    mask_sep = torch.LongTensor(
+        [b[9] + [0] * (max_len_cls - len(b[9])) for b in batch])
 
-    return src, segs, clss, mask_src, mask_cls, labels, txt, label_str
+    return src, segs, clss, mask_src, mask_cls, labels, txt, label_str, seps, mask_sep
 
 
 class CFG:
@@ -1233,13 +1255,15 @@ for fold in range(CFG.n_splits):
                 pred_fin = []
                 losses = AverageMeter()
                 valid_loader = tqdm(valid_loader, leave=False)
-                for i, (src, segs, clss, mask_src, mask_cls, labels, txt, label_str) in enumerate(valid_loader):
+                for i, (src, segs, clss, mask_src, mask_cls, labels, txt, label_str, seps, mask_sep) in enumerate(valid_loader):
                     src = src.to(CFG.device)
                     segs = segs.to(CFG.device)
                     clss = clss.to(CFG.device)
                     mask_src = mask_src.to(CFG.device)
                     mask_cls = mask_cls.to(CFG.device)
                     labels = labels.to(CFG.device)
+                    seps = seps.to(self.config.device)
+                    mask_sep = mask_sep.to(self.config.device)
 
                     gold = []
                     pred = []
@@ -1247,7 +1271,7 @@ for fold in range(CFG.n_splits):
                     batch_size = src.size(0)
 
                     with torch.no_grad():
-                        sent_scores, mask = model(src, mask_src, segs, clss, mask_cls)
+                        sent_scores, mask = model(src, mask_src, segs, clss, mask_cls, seps, mask_sep)
                         loss = loss_func(sent_scores, labels)
                         loss = (loss * mask).mean()
                         losses.update(loss.item(), batch_size)
@@ -1312,18 +1336,20 @@ for fold in range(CFG.n_splits):
 
                 pred_fin = []
                 test_loader = tqdm(tst_loader, leave=False)
-                for i, (src, segs, clss, mask_src, mask_cls, _, txt, _) in enumerate(test_loader):
+                for i, (src, segs, clss, mask_src, mask_cls, _, txt, _, seps, mask_sep) in enumerate(test_loader):
                     src = src.to(CFG.device)
                     segs = segs.to(CFG.device)
                     clss = clss.to(CFG.device)
                     mask_src = mask_src.to(CFG.device)
                     mask_cls = mask_cls.to(CFG.device)
+                    seps = seps.to(self.config.device)
+                    mask_sep = mask_sep.to(self.config.device)
 
                     gold, pred = [], []
                     batch_size = src.size(0)
 
                     with torch.no_grad():
-                        sent_scores, mask = model(src, mask_src, segs, clss, mask_cls)
+                        sent_scores, mask = model(src, mask_src, segs, clss, mask_cls, seps, mask_sep)
                         sent_scores = sent_scores + mask.float()
                         sent_scores = sent_scores.cpu().data.numpy()
                         selected_ids = np.argsort(-sent_scores, 1)
