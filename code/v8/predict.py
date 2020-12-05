@@ -1126,7 +1126,7 @@ class CFG:
 
     # etc
     fold_ensemble = False
-    validation = True
+    validation = False
     submission = True
     block_tri = False
     morp = False
@@ -1256,7 +1256,6 @@ for fold in range(CFG.n_splits):
                 return False
 
             if CFG.validation:
-                print(train_df[train_df['fold'] == CFG.val_fold].head())
                 val_dataset = DSBADataset(
                     CFG, train_df[train_df['fold'] == CFG.val_fold], tokenizer,
                     False)
@@ -1322,9 +1321,6 @@ for fold in range(CFG.n_splits):
                     pred_fin += pred
                     valid_loader.set_description(f"valid ce:{losses.avg:.4f}")
 
-                    print(label_str)
-                    break
-
                 with open(f'scores_{args.version}_{args.exp_id}.pkl', 'wb') as f:
                     pickle.dump(sent_scores_fin, f)
 
@@ -1357,6 +1353,7 @@ for fold in range(CFG.n_splits):
                     collate_fn=collate_fn
                 )
 
+                sent_scores_fin = []
                 pred_fin = []
                 test_loader = tqdm(tst_loader, leave=False)
                 for i, (src, segs, clss, mask_src, mask_cls, _, txt, _) in enumerate(test_loader):
@@ -1371,8 +1368,9 @@ for fold in range(CFG.n_splits):
 
                     with torch.no_grad():
                         sent_scores, mask = model(src, mask_src, segs, clss, mask_cls)
-                        sent_scores = sent_scores + mask.float()
+                        sent_scores = sent_scores * mask.float()
                         sent_scores = sent_scores.cpu().data.numpy()
+                        sent_scores_fin.append(sent_scores)
                         selected_ids = np.argsort(-sent_scores, 1)
 
                         for i, idx in enumerate(selected_ids):
@@ -1396,6 +1394,10 @@ for fold in range(CFG.n_splits):
                             pred.append(_pred)
 
                     pred_fin += pred
+                    break
+
+                with open(f'scores_{args.version}_{args.exp_id}.pkl', 'wb') as f:
+                    pickle.dump(sent_scores_fin, f)
 
                 assert len(test_ext_df) == len(pred_fin)
 
