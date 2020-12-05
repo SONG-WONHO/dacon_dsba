@@ -131,6 +131,10 @@ class DSBADataset(Dataset):
         """
         t_id, media, txt, label, txt_tgt = self.items[idx]
 
+        if self.augment and (np.random.random() < 0.5):
+            label_str = " ".join([txt[l] for l in label])
+            txt_tgt = label_str
+
         src = []
         segs = []
         clss = []
@@ -1427,7 +1431,7 @@ class CFG:
     # train
     batch_size = 16
     learning_rate = 1e-5
-    num_epochs = 12
+    num_epochs = 16
     start_epoch = 0
     warmup_steps = 300
 
