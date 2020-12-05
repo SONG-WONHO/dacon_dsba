@@ -13,6 +13,7 @@ import warnings
 import argparse
 from tqdm import tqdm
 from pprint import pprint
+import pickle
 
 from rouge import Rouge
 import numpy as np
@@ -1251,6 +1252,7 @@ for fold in range(CFG.n_splits):
                     collate_fn=collate_fn
                 )
 
+                sent_scores_fin = []
                 gold_fin = []
                 pred_fin = []
                 losses = AverageMeter()
@@ -1278,7 +1280,7 @@ for fold in range(CFG.n_splits):
 
                         sent_scores = sent_scores + mask.float()
                         sent_scores = sent_scores.cpu().data.numpy()
-                        print(sent_scores.shape)
+                        sent_scores_fin.append(sent_scores)
                         selected_ids = np.argsort(-sent_scores, 1)
 
                         for i, idx in enumerate(selected_ids):
@@ -1305,6 +1307,10 @@ for fold in range(CFG.n_splits):
                     gold_fin += gold
                     pred_fin += pred
                     valid_loader.set_description(f"valid ce:{losses.avg:.4f}")
+                    break
+
+                with open(f'scores_{args.version}_{args.exp_id}.pkl', 'wb') as f:
+                    pickle.dump(sent_scores_fin, f)
 
                 print(f"Loss: {losses.avg:.4f}")
                 assert len(gold_fin) == len(pred_fin)
