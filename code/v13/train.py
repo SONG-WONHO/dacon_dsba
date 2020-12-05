@@ -1523,8 +1523,6 @@ if torch.cuda.device_count() > 1:
     model = nn.DataParallel(model)
 model = model.to(CFG.device)
 
-assert (model.bert.embeddings.word_embeddings.weight == state_dict['bert.embeddings.word_embeddings.weight'].to(CFG.device)).all()
-
 # get scheduler
 num_training_steps = int(len(trn_dataset) / CFG.batch_size) * (CFG.num_epochs)
 scheduler = get_linear_schedule_with_warmup(
