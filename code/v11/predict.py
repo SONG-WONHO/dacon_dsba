@@ -1262,8 +1262,8 @@ for fold in range(CFG.n_splits):
                     mask_src = mask_src.to(CFG.device)
                     mask_cls = mask_cls.to(CFG.device)
                     labels = labels.to(CFG.device)
-                    seps = seps.to(self.config.device)
-                    mask_sep = mask_sep.to(self.config.device)
+                    seps = seps.to(CFG.device)
+                    mask_sep = mask_sep.to(CFG.device)
 
                     gold = []
                     pred = []
@@ -1342,8 +1342,8 @@ for fold in range(CFG.n_splits):
                     clss = clss.to(CFG.device)
                     mask_src = mask_src.to(CFG.device)
                     mask_cls = mask_cls.to(CFG.device)
-                    seps = seps.to(self.config.device)
-                    mask_sep = mask_sep.to(self.config.device)
+                    seps = seps.to(CFG.device)
+                    mask_sep = mask_sep.to(CFG.device)
 
                     gold, pred = [], []
                     batch_size = src.size(0)
