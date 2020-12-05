@@ -1278,7 +1278,7 @@ for fold in range(CFG.n_splits):
                         loss = (loss * mask).mean()
                         losses.update(loss.item(), batch_size)
 
-                        sent_scores = sent_scores + mask.float()
+                        sent_scores = sent_scores * mask.float()
                         sent_scores = sent_scores.cpu().data.numpy()
                         sent_scores_fin.append(sent_scores)
                         selected_ids = np.argsort(-sent_scores, 1)
