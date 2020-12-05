@@ -1321,6 +1321,7 @@ for fold in range(CFG.n_splits):
                     pred_fin += pred
                     valid_loader.set_description(f"valid ce:{losses.avg:.4f}")
 
+                    print(label_str)
                     break
 
                 with open(f'scores_{args.version}_{args.exp_id}.pkl', 'wb') as f:
