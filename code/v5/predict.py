@@ -1164,6 +1164,8 @@ CFG.sub_name = f"submission." \
                f"exp_{args.exp_id}." \
                f"loss_{loss:.4f}.csv"
 
+CFG.batch_size = 16
+
 pprint({k: v for k, v in dict(CFG.__dict__).items() if '__' not in k})
 print()
 
