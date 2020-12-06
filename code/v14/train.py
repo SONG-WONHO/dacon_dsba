@@ -200,6 +200,7 @@ class DSBADataset(Dataset):
             seps = seps.tolist()
             labels = labels[cand[0]: cand[1]]
             mask_cls = mask_cls[cand[0]: cand[1]]
+            mask_sep = mask_sep[cand[0]: cand[1]]
 
         return src, segs, clss, mask_src, mask_cls, labels, seps, mask_sep
 
@@ -218,10 +219,6 @@ def collate_fn(batch):
     # max_len = CFG.max_len
     max_len_cls = max([len(b[2]) for b in batch])
 
-    max_len_sep = max([len(b[7]) for b in batch])
-
-    print(max_len_cls, max_len_sep)
-
     # encoded
     src = torch.LongTensor([b[0] + [0] * (max_len - len(b[0])) for b in batch])
     segs = torch.LongTensor([b[1] + [0] * (max_len - len(b[1])) for b in batch])
@@ -235,7 +232,6 @@ def collate_fn(batch):
         [b[5] + [0] * (max_len_cls - len(b[5])) for b in batch])
     seps = torch.LongTensor(
         [b[6] + [0] * (max_len_cls - len(b[6])) for b in batch])
-    print([len(b[7] + [0] * (max_len_cls - len(b[7]))) for b in batch])
     mask_sep = torch.LongTensor(
         [b[7] + [0] * (max_len_cls - len(b[7])) for b in batch])
 
