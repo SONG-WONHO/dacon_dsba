@@ -826,6 +826,8 @@ class BaseModel2(nn.Module):
         self.ext_layer = ExtTransformerEncoder(self.bert.config.hidden_size * 2,
                                                2048, 8, 0.2, 2)
 
+        # self.ext_layer = Classifier(self.bert.config.hidden_size)
+
         if (config.max_len > 512):
             my_pos_embeddings = nn.Embedding(config.max_len, self.bert.config.hidden_size)
             my_pos_embeddings.weight.data[:512] = self.bert.embeddings.position_embeddings.weight.data
@@ -1024,7 +1026,7 @@ class Learner(object):
 
             preds, _ = model(src, mask_src, segs, clss, mask_cls, seps, mask_sep)
             loss = loss_func(preds, labels)
-            loss = (loss * mask_cls.float()).sum() / mask_cls.sum()
+            loss = (loss * mask_cls.float()).mean()
             losses.update(loss.item(), batch_size)
 
             optimizer.zero_grad()
@@ -1060,7 +1062,7 @@ class Learner(object):
             with torch.no_grad():
                 preds, _ = model(src, mask_src, segs, clss, mask_cls, seps, mask_sep)
                 loss = loss_func(preds, labels)
-                loss = (loss * mask_cls.float()).sum() / mask_cls.sum()
+                loss = (loss * mask_cls.float()).mean()
                 losses.update(loss.item(), batch_size)
 
             valid_loader.set_description(f"valid ce:{losses.avg:.4f}")
@@ -1091,7 +1093,7 @@ class CFG:
     # train
     batch_size = 16
     learning_rate = 1e-5
-    num_epochs = 6
+    num_epochs = 4
     start_epoch = 0
     warmup_steps = 300
 
