@@ -1024,7 +1024,7 @@ class Learner(object):
 
             preds, _ = model(src, mask_src, segs, clss, mask_cls, seps, mask_sep)
             loss = loss_func(preds, labels)
-            loss = (loss * mask_cls.float()).mean()
+            loss = (loss * mask_cls.float()).sum() / mask_cls.sum()
             losses.update(loss.item(), batch_size)
 
             optimizer.zero_grad()
@@ -1060,7 +1060,7 @@ class Learner(object):
             with torch.no_grad():
                 preds, _ = model(src, mask_src, segs, clss, mask_cls, seps, mask_sep)
                 loss = loss_func(preds, labels)
-                loss = (loss * mask_cls.float()).mean()
+                loss = (loss * mask_cls.float()).sum() / mask_cls.sum()
                 losses.update(loss.item(), batch_size)
 
             valid_loader.set_description(f"valid ce:{losses.avg:.4f}")
