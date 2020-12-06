@@ -1122,7 +1122,7 @@ class CFG:
 
     # etc
     fold_ensemble = False
-    validation = False
+    validation = True
     submission = True
     block_tri = False
 
@@ -1252,7 +1252,6 @@ for fold in range(CFG.n_splits):
                     collate_fn=collate_fn
                 )
 
-                sent_scores_fin = []
                 gold_fin = []
                 pred_fin = []
                 losses = AverageMeter()
@@ -1280,7 +1279,6 @@ for fold in range(CFG.n_splits):
 
                         sent_scores = sent_scores * mask.float()
                         sent_scores = sent_scores.cpu().data.numpy()
-                        sent_scores_fin.append(sent_scores)
                         selected_ids = np.argsort(-sent_scores, 1)
 
                         for i, idx in enumerate(selected_ids):
@@ -1307,9 +1305,6 @@ for fold in range(CFG.n_splits):
                     gold_fin += gold
                     pred_fin += pred
                     valid_loader.set_description(f"valid ce:{losses.avg:.4f}")
-
-                with open(f'scores_{args.version}_{args.exp_id}.pkl', 'wb') as f:
-                    pickle.dump(sent_scores_fin, f)
 
                 print(f"Loss: {losses.avg:.4f}")
                 assert len(gold_fin) == len(pred_fin)
@@ -1340,7 +1335,6 @@ for fold in range(CFG.n_splits):
                     collate_fn=collate_fn
                 )
 
-                sent_scores_fin = []
                 pred_fin = []
                 test_loader = tqdm(tst_loader, leave=False)
                 for i, (src, segs, clss, mask_src, mask_cls, _, txt, _, seps, mask_sep) in enumerate(test_loader):
@@ -1359,7 +1353,6 @@ for fold in range(CFG.n_splits):
                         sent_scores, mask = model(src, mask_src, segs, clss, mask_cls, seps, mask_sep)
                         sent_scores = sent_scores * mask.float()
                         sent_scores = sent_scores.cpu().data.numpy()
-                        sent_scores_fin.append(sent_scores)
                         selected_ids = np.argsort(-sent_scores, 1)
 
                         for i, idx in enumerate(selected_ids):
@@ -1383,9 +1376,6 @@ for fold in range(CFG.n_splits):
                             pred.append(_pred)
 
                     pred_fin += pred
-
-                with open(f'scores_{args.version}_{args.exp_id}.pkl', 'wb') as f:
-                    pickle.dump(sent_scores_fin, f)
 
                 assert len(test_ext_df) == len(pred_fin)
 
