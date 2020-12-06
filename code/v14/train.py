@@ -218,6 +218,10 @@ def collate_fn(batch):
     # max_len = CFG.max_len
     max_len_cls = max([len(b[2]) for b in batch])
 
+    max_len_sep = max([len(b[7]) for b in batch])
+
+    print(max_len_cls, max_len_sep)
+
     # encoded
     src = torch.LongTensor([b[0] + [0] * (max_len - len(b[0])) for b in batch])
     segs = torch.LongTensor([b[1] + [0] * (max_len - len(b[1])) for b in batch])
