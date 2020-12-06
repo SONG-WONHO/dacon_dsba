@@ -231,7 +231,7 @@ def collate_fn(batch):
         [b[5] + [0] * (max_len_cls - len(b[5])) for b in batch])
     seps = torch.LongTensor(
         [b[6] + [0] * (max_len_cls - len(b[6])) for b in batch])
-    print(b[7])
+    print(b[7].shape)
     mask_sep = torch.LongTensor(
         [b[7] + [0] * (max_len_cls - len(b[7])) for b in batch])
 
