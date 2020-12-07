@@ -810,7 +810,7 @@ class BaseModel2(nn.Module):
 
         # out
         self.ext_layer = ExtTransformerEncoder(self.bert.config.hidden_size,
-                                               2048, 8, 0.2, 2)
+                                               2048, 8, 0.3, 3)
 
         # self.ext_layer = Classifier(self.bert.config.hidden_size)
 
