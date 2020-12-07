@@ -810,7 +810,7 @@ class BaseModel2(nn.Module):
 
         # out
         self.ext_layer = ExtTransformerEncoder(self.bert.config.hidden_size,
-                                               2048, 8, 0.2, 2)
+                                               2048, 8, self.config.dropout, 2)
 
         # self.ext_layer = Classifier(self.bert.config.hidden_size)
 
@@ -1059,11 +1059,11 @@ class CFG:
     # model
     model_name = "BaseModel2"
     pretrained_name = "bert-base-uncased"
-    dropout = 0.2
+    dropout = 0.25
 
     # train
     batch_size = 16
-    learning_rate = 6e-6
+    learning_rate = 2e-6
     num_epochs = 12
     start_epoch = 0
     warmup_steps = 300
