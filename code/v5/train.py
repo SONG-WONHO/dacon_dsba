@@ -76,7 +76,8 @@ def get_device():
 
 
 def load_data(config):
-    train_df = pd.read_csv(os.path.join(config.root_path, "train.csv"))
+    # train_df = pd.read_csv(os.path.join(config.root_path, "train.csv"))
+    train_df = pd.read_csv(os.path.join(config.root_path, "train_new.csv"))
     test_ext_df = pd.read_csv(
         os.path.join(config.root_path, "test_extractive.csv"))
     test_abs_df = pd.read_csv(
@@ -1052,7 +1053,7 @@ class CFG:
     # train
     batch_size = 64
     learning_rate = 1e-5
-    num_epochs = 16
+    num_epochs = 4
     start_epoch = 0
     warmup_steps = 300
 
@@ -1061,7 +1062,7 @@ class CFG:
     workers = 8
     num_targets = 2
     val_fold = 0
-    n_splits = 11
+    n_splits = 5
 
 
 # get version
