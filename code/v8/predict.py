@@ -991,7 +991,6 @@ class DSBADataset(Dataset):
         t_id, media, txt, label, txt_origin, abs = self.items[idx]
         # label_str = "\n".join([txt_origin[l] for l in label])
         label_str = abs
-        print(label_str)
 
         src = []
         segs = []
