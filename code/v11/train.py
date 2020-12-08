@@ -76,7 +76,8 @@ def get_device():
 
 
 def load_data(config):
-    train_df = pd.read_csv(os.path.join(config.root_path, "train.csv"))
+    # train_df = pd.read_csv(os.path.join(config.root_path, "train.csv"))
+    train_df = pd.read_csv(os.path.join(config.root_path, "train_new.csv"))
     test_ext_df = pd.read_csv(
         os.path.join(config.root_path, "test_extractive.csv"))
     test_abs_df = pd.read_csv(
