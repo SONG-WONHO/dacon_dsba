@@ -89,7 +89,8 @@ def load_data(config):
 
 
 def load_data_morp(config):
-    train_df = pd.read_csv(os.path.join(config.root_path, "train_morp.csv"))
+    # train_df = pd.read_csv(os.path.join(config.root_path, "train_morp.csv"))
+    train_df = pd.read_csv(os.path.join(config.root_path, "train_morp_new.csv"))
     test_ext_df = pd.read_csv(
         os.path.join(config.root_path, "test_ext_morp.csv"))
     test_abs_df = pd.read_csv(
@@ -1059,12 +1060,12 @@ class CFG:
     # model
     model_name = "BaseModel2"
     pretrained_name = "bert-base-uncased"
-    dropout = 0.25
+    dropout = 0.2
 
     # train
     batch_size = 16
-    learning_rate = 2e-6
-    num_epochs = 12
+    learning_rate = 1e-5
+    num_epochs = 4
     start_epoch = 0
     warmup_steps = 300
 
