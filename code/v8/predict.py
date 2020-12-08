@@ -969,7 +969,7 @@ class DSBADataset(Dataset):
         self.df = df
         self.tokenizer = tokenizer
         self.items = df[
-            ['id', 'media', 'article_original', 'extractive', 'article_original_origin']].values
+            ['id', 'media', 'article_original', 'extractive', 'article_original_origin', 'abstractive']].values
         self.test = test
 
     def __len__(self):
@@ -987,8 +987,10 @@ class DSBADataset(Dataset):
 
         Returns: item
         """
-        t_id, media, txt, label, txt_origin = self.items[idx]
-        label_str = "\n".join([txt_origin[l] for l in label])
+        t_id, media, txt, label, txt_origin, abs = self.items[idx]
+        # label_str = "\n".join([txt_origin[l] for l in label])
+        label_str = abs
+        print(label_str)
 
         src = []
         segs = []
