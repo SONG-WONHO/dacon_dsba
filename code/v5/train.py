@@ -1051,7 +1051,7 @@ class CFG:
     dropout = 0.2
 
     # train
-    batch_size = 64
+    batch_size = 16
     learning_rate = 1e-5
     num_epochs = 4
     start_epoch = 0
