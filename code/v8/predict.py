@@ -95,6 +95,7 @@ def load_data_morp(config):
     train_df = pd.read_csv(os.path.join(config.root_path, "train_morp.csv"))
     train_origin = pd.read_csv(os.path.join(config.root_path, "train.csv"))
     train_df['article_original_origin'] = train_origin['article_original']
+    train_df['abstractive_origin'] = train_origin['abstractive']
 
     test_ext_df = pd.read_csv(
         os.path.join(config.root_path, "test_ext_morp.csv"))
@@ -969,7 +970,7 @@ class DSBADataset(Dataset):
         self.df = df
         self.tokenizer = tokenizer
         self.items = df[
-            ['id', 'media', 'article_original', 'extractive', 'article_original_origin', 'abstractive']].values
+            ['id', 'media', 'article_original', 'extractive', 'article_original_origin', 'abstractive_origin']].values
         self.test = test
 
     def __len__(self):
@@ -989,7 +990,6 @@ class DSBADataset(Dataset):
         """
         t_id, media, txt, label, txt_origin, abs = self.items[idx]
         # label_str = "\n".join([txt_origin[l] for l in label])
-        label_str = abs
         print(label_str)
 
         src = []
