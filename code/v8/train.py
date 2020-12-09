@@ -2271,7 +2271,7 @@ class CFG:
     val_fold = 0
     n_splits = 5
     do_morp = True
-    do_relabel = True
+    do_relabel = False
 
 
 # get version
@@ -2309,6 +2309,7 @@ if CFG.do_morp:
 
     # get morp
     from khaiii import KhaiiiApi
+    api = KhaiiiApi()
 
     def get_morp(sents):
         def _get_morp(sent):
