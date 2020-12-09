@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 # coding: utf-8
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
 
 import random
 import os
@@ -52,10 +55,6 @@ warnings.filterwarnings("ignore")
 # 일자: 2019-05-23
 #
 """Tokenization classes."""
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
 
 import collections
 import unicodedata
