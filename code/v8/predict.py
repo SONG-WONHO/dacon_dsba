@@ -93,9 +93,9 @@ def load_data(config):
 
 def load_data_morp(config):
     # train_df = pd.read_csv(os.path.join(config.root_path, "train_morp.csv"))
-    # train_df = pd.read_csv(os.path.join(config.root_path, "train_morp_new.csv"))
-    train_df = pd.read_csv(
-        os.path.join(config.root_path, "train_morp_new2.csv"))
+    train_df = pd.read_csv(os.path.join(config.root_path, "train_morp_new.csv"))
+    # train_df = pd.read_csv(
+    #     os.path.join(config.root_path, "train_morp_new2.csv"))
     train_origin = pd.read_csv(os.path.join(config.root_path, "train.csv"))
     train_df['article_original_origin'] = train_origin['article_original']
     train_df['abstractive_origin'] = train_origin['abstractive']
