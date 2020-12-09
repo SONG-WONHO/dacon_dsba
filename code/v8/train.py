@@ -25,14 +25,1144 @@ from sklearn.model_selection import StratifiedKFold, train_test_split
 
 from transformers import BertModel, BertConfig
 from transformers import AdamW, get_linear_schedule_with_warmup
-from tokenizer import BertTokenizer
 
 
+tqdm.pandas()
 warnings.filterwarnings("ignore")
+
+
+# coding=utf-8
+# Copyright 2018 The Google AI Language Team Authors and The HugginFace Inc. team.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#	 http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+#
+# 형태소분석 기반 BERT를 위한 Tokenization Class
+# 수정: joonho.lim
+# 일자: 2019-05-23
+#
+"""Tokenization classes."""
+
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
+import collections
+import unicodedata
+import os
+import logging
+
+from transformers import cached_path
+
+logger = logging.getLogger(__name__)
+
+PRETRAINED_VOCAB_ARCHIVE_MAP = {
+    'bert-base-uncased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-uncased-vocab.txt",
+    'bert-large-uncased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-uncased-vocab.txt",
+    'bert-base-cased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-cased-vocab.txt",
+    'bert-large-cased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-cased-vocab.txt",
+    'bert-base-multilingual-uncased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-multilingual-uncased-vocab.txt",
+    'bert-base-multilingual-cased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-multilingual-cased-vocab.txt",
+    'bert-base-chinese': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-chinese-vocab.txt",
+}
+PRETRAINED_VOCAB_POSITIONAL_EMBEDDINGS_SIZE_MAP = {
+    'bert-base-uncased': 512,
+    'bert-large-uncased': 512,
+    'bert-base-cased': 512,
+    'bert-large-cased': 512,
+    'bert-base-multilingual-uncased': 512,
+    'bert-base-multilingual-cased': 512,
+    'bert-base-chinese': 512,
+}
+VOCAB_NAME = 'vocab.txt'
+
+
+def load_vocab(vocab_file):
+    """Loads a vocabulary file into a dictionary."""
+    vocab = collections.OrderedDict()
+    index = 0
+    with open(vocab_file, "r", encoding="utf-8") as reader:
+        while True:
+            token = reader.readline()
+            if not token:
+                break
+
+            ### joonho.lim @ 2019-03-15
+            if token.find('n_iters=') == 0 or token.find('max_length=') == 0:
+                continue
+            token = token.split('\t')[0]
+
+            token = token.strip()
+            vocab[token] = index
+            index += 1
+    return vocab
+
+
+def whitespace_tokenize(text):
+    """Runs basic whitespace cleaning and splitting on a peice of text."""
+    text = text.strip()
+    if not text:
+        return []
+    tokens = text.split()
+    return tokens
+
+
+class BertTokenizer(object):
+    """Runs end-to-end tokenization: punctuation splitting + wordpiece"""
+
+    def __init__(self, vocab_file, do_lower_case=True, max_len=None,
+                 never_split=("[UNK]", "[SEP]", "[PAD]", "[CLS]", "[MASK]")):
+        if not os.path.isfile(vocab_file):
+            raise ValueError(
+                "Can't find a vocabulary file at path '{}'. To load the vocabulary from a Google pretrained "
+                "model use `tokenizer = BertTokenizer.from_pretrained(PRETRAINED_MODEL_NAME)`".format(
+                    vocab_file))
+        self.vocab = load_vocab(vocab_file)
+        self.ids_to_tokens = collections.OrderedDict(
+            [(ids, tok) for tok, ids in self.vocab.items()])
+        self.basic_tokenizer = BasicTokenizer(do_lower_case=do_lower_case,
+                                              never_split=never_split)
+        self.wordpiece_tokenizer = WordpieceTokenizer(vocab=self.vocab)
+        self.max_len = max_len if max_len is not None else int(1e12)
+
+    def tokenize(self, text):
+        split_tokens = []
+        for token in self.basic_tokenizer.tokenize(text):
+            ### joonho.lim @ 2019-03-15
+            token += '_'
+            for sub_token in self.wordpiece_tokenizer.tokenize(token):
+                split_tokens.append(sub_token)
+        return split_tokens
+
+    def convert_tokens_to_ids(self, tokens):
+        """Converts a sequence of tokens into ids using the vocab."""
+        ids = []
+        for token in tokens:
+            ids.append(self.vocab[token])
+        if len(ids) > self.max_len:
+            raise ValueError(
+                "Token indices sequence length is longer than the specified maximum "
+                " sequence length for this BERT model ({} > {}). Running this"
+                " sequence through BERT will result in indexing errors".format(
+                    len(ids), self.max_len)
+            )
+        return ids
+
+    def convert_ids_to_tokens(self, ids):
+        """Converts a sequence of ids in wordpiece tokens using the vocab."""
+        tokens = []
+        for i in ids:
+            tokens.append(self.ids_to_tokens[i])
+        return tokens
+
+    @classmethod
+    def from_pretrained(cls, pretrained_model_name, cache_dir=None, *inputs,
+                        **kwargs):
+        """
+        Instantiate a PreTrainedBertModel from a pre-trained model file.
+        Download and cache the pre-trained model file if needed.
+        """
+        if pretrained_model_name in PRETRAINED_VOCAB_ARCHIVE_MAP:
+            vocab_file = PRETRAINED_VOCAB_ARCHIVE_MAP[pretrained_model_name]
+        else:
+            vocab_file = pretrained_model_name
+        if os.path.isdir(vocab_file):
+            vocab_file = os.path.join(vocab_file, VOCAB_NAME)
+        # redirect to the cache, if necessary
+        try:
+            resolved_vocab_file = cached_path(vocab_file, cache_dir=cache_dir)
+        except FileNotFoundError:
+            logger.error(
+                "Model name '{}' was not found in model name list ({}). "
+                "We assumed '{}' was a path or url but couldn't find any file "
+                "associated to this path or url.".format(
+                    pretrained_model_name,
+                    ', '.join(PRETRAINED_VOCAB_ARCHIVE_MAP.keys()),
+                    vocab_file))
+            return None
+        if resolved_vocab_file == vocab_file:
+            logger.info("loading vocabulary file {}".format(vocab_file))
+        else:
+            logger.info("loading vocabulary file {} from cache at {}".format(
+                vocab_file, resolved_vocab_file))
+        if pretrained_model_name in PRETRAINED_VOCAB_POSITIONAL_EMBEDDINGS_SIZE_MAP:
+            # if we're using a pretrained model, ensure the tokenizer wont index sequences longer
+            # than the number of positional embeddings
+            max_len = PRETRAINED_VOCAB_POSITIONAL_EMBEDDINGS_SIZE_MAP[
+                pretrained_model_name]
+            kwargs['max_len'] = min(kwargs.get('max_len', int(1e12)), max_len)
+        # Instantiate tokenizer.
+        tokenizer = cls(resolved_vocab_file, *inputs, **kwargs)
+        return tokenizer
+
+
+class BasicTokenizer(object):
+    """Runs basic tokenization (punctuation splitting, lower casing, etc.)."""
+
+    def __init__(self,
+                 do_lower_case=True,
+                 never_split=("[UNK]", "[SEP]", "[PAD]", "[CLS]", "[MASK]")):
+        """Constructs a BasicTokenizer.
+
+        Args:
+          do_lower_case: Whether to lower case the input.
+        """
+        self.do_lower_case = do_lower_case
+        self.never_split = never_split
+
+    def tokenize(self, text):
+        """Tokenizes a piece of text."""
+        text = self._clean_text(text)
+
+        ### joonho.lim @ 2019-03-15
+        # # # This was added on November 1st, 2018 for the multilingual and Chinese
+        # # # models. This is also applied to the English models now, but it doesn't
+        # # # matter since the English models were not trained on any Chinese data
+        # # # and generally don't have any Chinese data in them (there are Chinese
+        # # # characters in the vocabulary because Wikipedia does have some Chinese
+        # # # words in the English Wikipedia.).
+        # # text = self._tokenize_chinese_chars(text)
+
+        orig_tokens = whitespace_tokenize(text)
+        split_tokens = []
+        for token in orig_tokens:
+            if self.do_lower_case and token not in self.never_split:
+                token = token.lower()
+                token = self._run_strip_accents(token)
+            split_tokens.extend(self._run_split_on_punc(token))
+
+        output_tokens = whitespace_tokenize(" ".join(split_tokens))
+        return output_tokens
+
+    def _run_strip_accents(self, text):
+        """Strips accents from a piece of text."""
+        text = unicodedata.normalize("NFD", text)
+        output = []
+        for char in text:
+            cat = unicodedata.category(char)
+            if cat == "Mn":
+                continue
+            output.append(char)
+        return "".join(output)
+
+    def _run_split_on_punc(self, text):
+        """Splits punctuation on a piece of text."""
+        if text in self.never_split:
+            return [text]
+        chars = list(text)
+        i = 0
+        start_new_word = True
+        output = []
+        while i < len(chars):
+            char = chars[i]
+            if _is_punctuation(char):
+                output.append([char])
+                start_new_word = True
+            else:
+                if start_new_word:
+                    output.append([])
+                start_new_word = False
+                output[-1].append(char)
+            i += 1
+
+        return ["".join(x) for x in output]
+
+    def _tokenize_chinese_chars(self, text):
+        """Adds whitespace around any CJK character."""
+        output = []
+        for char in text:
+            cp = ord(char)
+            if self._is_chinese_char(cp):
+                output.append(" ")
+                output.append(char)
+                output.append(" ")
+            else:
+                output.append(char)
+        return "".join(output)
+
+    def _is_chinese_char(self, cp):
+        """Checks whether CP is the codepoint of a CJK character."""
+        # This defines a "chinese character" as anything in the CJK Unicode block:
+        #   https://en.wikipedia.org/wiki/CJK_Unified_Ideographs_(Unicode_block)
+        #
+        # Note that the CJK Unicode block is NOT all Japanese and Korean characters,
+        # despite its name. The modern Korean Hangul alphabet is a different block,
+        # as is Japanese Hiragana and Katakana. Those alphabets are used to write
+        # space-separated words, so they are not treated specially and handled
+        # like the all of the other languages.
+        if ((cp >= 0x4E00 and cp <= 0x9FFF) or  #
+                (cp >= 0x3400 and cp <= 0x4DBF) or  #
+                (cp >= 0x20000 and cp <= 0x2A6DF) or  #
+                (cp >= 0x2A700 and cp <= 0x2B73F) or  #
+                (cp >= 0x2B740 and cp <= 0x2B81F) or  #
+                (cp >= 0x2B820 and cp <= 0x2CEAF) or
+                (cp >= 0xF900 and cp <= 0xFAFF) or  #
+                (cp >= 0x2F800 and cp <= 0x2FA1F)):  #
+            return True
+
+        return False
+
+    def _clean_text(self, text):
+        """Performs invalid character removal and whitespace cleanup on text."""
+        output = []
+        for char in text:
+            cp = ord(char)
+            if cp == 0 or cp == 0xfffd or _is_control(char):
+                continue
+            if _is_whitespace(char):
+                output.append(" ")
+            else:
+                output.append(char)
+        return "".join(output)
+
+
+class WordpieceTokenizer(object):
+    """Runs WordPiece tokenization."""
+
+    def __init__(self, vocab, unk_token="[UNK]", max_input_chars_per_word=100):
+        self.vocab = vocab
+        self.unk_token = unk_token
+        self.max_input_chars_per_word = max_input_chars_per_word
+
+    def tokenize(self, text):
+        """Tokenizes a piece of text into its word pieces.
+
+        This uses a greedy longest-match-first algorithm to perform tokenization
+        using the given vocabulary.
+
+        For example:
+          input = "unaffable"
+          output = ["un", "##aff", "##able"]
+
+        Args:
+          text: A single token or whitespace separated tokens. This should have
+            already been passed through `BasicTokenizer`.
+
+        Returns:
+          A list of wordpiece tokens.
+        """
+
+        output_tokens = []
+        for token in whitespace_tokenize(text):
+            chars = list(token)
+            if len(chars) > self.max_input_chars_per_word:
+                output_tokens.append(self.unk_token)
+                continue
+
+            is_bad = False
+            start = 0
+            sub_tokens = []
+            while start < len(chars):
+                end = len(chars)
+                cur_substr = None
+                while start < end:
+                    substr = "".join(chars[start:end])
+                    ### joonho.lim @ 2019-03-15
+                    # if start > 0:
+                    # substr = "##" + substr
+                    if substr in self.vocab:
+                        cur_substr = substr
+                        break
+                    end -= 1
+                if cur_substr is None:
+                    is_bad = True
+                    break
+                sub_tokens.append(cur_substr)
+                start = end
+
+            if is_bad:
+                output_tokens.append(self.unk_token)
+            else:
+                output_tokens.extend(sub_tokens)
+        return output_tokens
+
+
+def _is_whitespace(char):
+    """Checks whether `chars` is a whitespace character."""
+    # \t, \n, and \r are technically contorl characters but we treat them
+    # as whitespace since they are generally considered as such.
+    if char == " " or char == "\t" or char == "\n" or char == "\r":
+        return True
+    cat = unicodedata.category(char)
+    if cat == "Zs":
+        return True
+    return False
+
+
+def _is_control(char):
+    """Checks whether `chars` is a control character."""
+    # These are technically control characters but we count them as whitespace
+    # characters.
+    if char == "\t" or char == "\n" or char == "\r":
+        return False
+    cat = unicodedata.category(char)
+    if cat.startswith("C"):
+        return True
+    return False
+
+
+def _is_punctuation(char):
+    ### joonho.lim @ 2019-03-15
+    return char == ' '
+
+# """Checks whether `chars` is a punctuation character."""
+# cp = ord(char)
+# # We treat all non-letter/number ASCII as punctuation.
+# # Characters such as "^", "$", and "`" are not in the Unicode
+# # Punctuation class but we treat them as punctuation anyways, for
+# # consistency.
+# if ((cp >= 33 and cp <= 47) or (cp >= 58 and cp <= 64) or
+# (cp >= 91 and cp <= 96) or (cp >= 123 and cp <= 126)):
+# return True
+# cat = unicodedata.category(char)
+# if cat.startswith("P"):
+# return True
+# return False
+
 
 
 """ Commonly used functions
 """
+
+import os
+import re
+import platform
+import itertools
+import collections
+import pkg_resources  # pip install py-rouge
+from io import open
+
+
+if platform.system() == "Windows":
+    try:
+        from eunjeon import Mecab
+    except:
+        print("please install eunjeon module")
+else:  # Ubuntu일 경우
+    from konlpy.tag import Mecab
+
+
+class Rouge:
+    DEFAULT_METRICS = {"rouge-n"}
+    DEFAULT_N = 1
+    STATS = ["f", "p", "r"]
+    AVAILABLE_METRICS = {"rouge-n", "rouge-l", "rouge-w"}
+    AVAILABLE_LENGTH_LIMIT_TYPES = {"words", "bytes"}
+    REMOVE_CHAR_PATTERN = re.compile("[^A-Za-z0-9가-힣]")
+
+
+    def __init__(
+        self,
+        metrics=None,
+        max_n=None,
+        limit_length=True,
+        length_limit=1000,
+        length_limit_type="words",
+        apply_avg=True,
+        apply_best=False,
+        use_tokenizer=True,
+        alpha=0.5,
+        weight_factor=1.0,
+    ):
+        self.metrics = metrics[:] if metrics is not None else Rouge.DEFAULT_METRICS
+        for m in self.metrics:
+            if m not in Rouge.AVAILABLE_METRICS:
+                raise ValueError("Unknown metric '{}'".format(m))
+
+
+        self.max_n = max_n if "rouge-n" in self.metrics else None
+        # Add all rouge-n metrics
+        if self.max_n is not None:
+            index_rouge_n = self.metrics.index("rouge-n")
+            del self.metrics[index_rouge_n]
+            self.metrics += ["rouge-{}".format(n) for n in range(1, self.max_n + 1)]
+        self.metrics = set(self.metrics)
+
+
+        self.limit_length = limit_length
+        if self.limit_length:
+            if length_limit_type not in Rouge.AVAILABLE_LENGTH_LIMIT_TYPES:
+                raise ValueError("Unknown length_limit_type '{}'".format(length_limit_type))
+
+
+        self.length_limit = length_limit
+        if self.length_limit == 0:
+            self.limit_length = False
+        self.length_limit_type = length_limit_type
+
+
+        self.use_tokenizer = use_tokenizer
+        if use_tokenizer:
+            self.tokenizer = Mecab()
+
+
+        self.apply_avg = apply_avg
+        self.apply_best = apply_best
+        self.alpha = alpha
+        self.weight_factor = weight_factor
+        if self.weight_factor <= 0:
+            raise ValueError("ROUGE-W weight factor must greater than 0.")
+
+
+    def tokenize_text(self, text):
+        if self.use_tokenizer:
+            return self.tokenizer.morphs(text)
+        else:
+            return text
+
+
+    @staticmethod
+    def split_into_sentences(text):
+        return text.split("\n")
+
+
+    @staticmethod
+    def _get_ngrams(n, text):
+        ngram_set = collections.defaultdict(int)
+        max_index_ngram_start = len(text) - n
+        for i in range(max_index_ngram_start + 1):
+            ngram_set[tuple(text[i : i + n])] += 1
+        return ngram_set
+
+
+    @staticmethod
+    def _split_into_words(sentences):
+        return list(itertools.chain(*[_.split() for _ in sentences]))
+
+
+    @staticmethod
+    def _get_word_ngrams_and_length(n, sentences):
+        assert len(sentences) > 0
+        assert n > 0
+
+
+        tokens = Rouge._split_into_words(sentences)
+        return Rouge._get_ngrams(n, tokens), tokens, len(tokens) - (n - 1)
+
+
+    @staticmethod
+    def _get_unigrams(sentences):
+        assert len(sentences) > 0
+
+
+        tokens = Rouge._split_into_words(sentences)
+        unigram_set = collections.defaultdict(int)
+        for token in tokens:
+            unigram_set[token] += 1
+        return unigram_set, len(tokens)
+
+
+    @staticmethod
+    def _compute_p_r_f_score(
+        evaluated_count,
+        reference_count,
+        overlapping_count,
+        alpha=0.5,
+        weight_factor=1.0,
+    ):
+        precision = 0.0 if evaluated_count == 0 else overlapping_count / float(evaluated_count)
+        if weight_factor != 1.0:
+            precision = precision ** (1.0 / weight_factor)
+        recall = 0.0 if reference_count == 0 else overlapping_count / float(reference_count)
+        if weight_factor != 1.0:
+            recall = recall ** (1.0 / weight_factor)
+        f1_score = Rouge._compute_f_score(precision, recall, alpha)
+        return {"f": f1_score, "p": precision, "r": recall}
+
+
+    @staticmethod
+    def _compute_f_score(precision, recall, alpha=0.5):
+        return (
+            0.0
+            if (recall == 0.0 or precision == 0.0)
+            else precision * recall / ((1 - alpha) * precision + alpha * recall)
+        )
+
+
+    @staticmethod
+    def _compute_ngrams(evaluated_sentences, reference_sentences, n):
+        if len(evaluated_sentences) <= 0 or len(reference_sentences) <= 0:
+            raise ValueError("Collections must contain at least 1 sentence.")
+
+
+        evaluated_ngrams, _, evaluated_count = Rouge._get_word_ngrams_and_length(
+            n, evaluated_sentences
+        )
+        reference_ngrams, _, reference_count = Rouge._get_word_ngrams_and_length(
+            n, reference_sentences
+        )
+
+
+        # Gets the overlapping ngrams between evaluated and reference
+        overlapping_ngrams = set(evaluated_ngrams.keys()).intersection(set(reference_ngrams.keys()))
+        overlapping_count = 0
+        for ngram in overlapping_ngrams:
+            overlapping_count += min(evaluated_ngrams[ngram], reference_ngrams[ngram])
+
+
+        return evaluated_count, reference_count, overlapping_count
+
+
+    @staticmethod
+    def _compute_ngrams_lcs(evaluated_sentences, reference_sentences, weight_factor=1.0):
+        def _lcs(x, y):
+            m = len(x)
+            n = len(y)
+            vals = collections.defaultdict(int)
+            dirs = collections.defaultdict(int)
+
+
+            for i in range(1, m + 1):
+                for j in range(1, n + 1):
+                    if x[i - 1] == y[j - 1]:
+                        vals[i, j] = vals[i - 1, j - 1] + 1
+                        dirs[i, j] = "|"
+                    elif vals[i - 1, j] >= vals[i, j - 1]:
+                        vals[i, j] = vals[i - 1, j]
+                        dirs[i, j] = "^"
+                    else:
+                        vals[i, j] = vals[i, j - 1]
+                        dirs[i, j] = "<"
+
+
+            return vals, dirs
+
+
+        def _wlcs(x, y, weight_factor):
+            m = len(x)
+            n = len(y)
+            vals = collections.defaultdict(float)
+            dirs = collections.defaultdict(int)
+            lengths = collections.defaultdict(int)
+
+
+            for i in range(1, m + 1):
+                for j in range(1, n + 1):
+                    if x[i - 1] == y[j - 1]:
+                        length_tmp = lengths[i - 1, j - 1]
+                        vals[i, j] = (
+                            vals[i - 1, j - 1]
+                            + (length_tmp + 1) ** weight_factor
+                            - length_tmp ** weight_factor
+                        )
+                        dirs[i, j] = "|"
+                        lengths[i, j] = length_tmp + 1
+                    elif vals[i - 1, j] >= vals[i, j - 1]:
+                        vals[i, j] = vals[i - 1, j]
+                        dirs[i, j] = "^"
+                        lengths[i, j] = 0
+                    else:
+                        vals[i, j] = vals[i, j - 1]
+                        dirs[i, j] = "<"
+                        lengths[i, j] = 0
+
+
+            return vals, dirs
+
+
+        def _mark_lcs(mask, dirs, m, n):
+            while m != 0 and n != 0:
+                if dirs[m, n] == "|":
+                    m -= 1
+                    n -= 1
+                    mask[m] = 1
+                elif dirs[m, n] == "^":
+                    m -= 1
+                elif dirs[m, n] == "<":
+                    n -= 1
+                else:
+                    raise UnboundLocalError("Illegal move")
+
+
+            return mask
+
+
+        if len(evaluated_sentences) <= 0 or len(reference_sentences) <= 0:
+            raise ValueError("Collections must contain at least 1 sentence.")
+
+
+        evaluated_unigrams_dict, evaluated_count = Rouge._get_unigrams(evaluated_sentences)
+        reference_unigrams_dict, reference_count = Rouge._get_unigrams(reference_sentences)
+
+
+        # Has to use weight factor for WLCS
+        use_WLCS = weight_factor != 1.0
+        if use_WLCS:
+            evaluated_count = evaluated_count ** weight_factor
+            reference_count = 0
+
+
+        overlapping_count = 0.0
+        for reference_sentence in reference_sentences:
+            reference_sentence_tokens = reference_sentence.split()
+            if use_WLCS:
+                reference_count += len(reference_sentence_tokens) ** weight_factor
+            hit_mask = [0 for _ in range(len(reference_sentence_tokens))]
+
+
+            for evaluated_sentence in evaluated_sentences:
+                evaluated_sentence_tokens = evaluated_sentence.split()
+
+
+                if use_WLCS:
+                    _, lcs_dirs = _wlcs(
+                        reference_sentence_tokens,
+                        evaluated_sentence_tokens,
+                        weight_factor,
+                    )
+                else:
+                    _, lcs_dirs = _lcs(reference_sentence_tokens, evaluated_sentence_tokens)
+                _mark_lcs(
+                    hit_mask,
+                    lcs_dirs,
+                    len(reference_sentence_tokens),
+                    len(evaluated_sentence_tokens),
+                )
+
+
+            overlapping_count_length = 0
+            for ref_token_id, val in enumerate(hit_mask):
+                if val == 1:
+                    token = reference_sentence_tokens[ref_token_id]
+                    if evaluated_unigrams_dict[token] > 0 and reference_unigrams_dict[token] > 0:
+                        evaluated_unigrams_dict[token] -= 1
+                        reference_unigrams_dict[ref_token_id] -= 1
+
+
+                        if use_WLCS:
+                            overlapping_count_length += 1
+                            if (
+                                ref_token_id + 1 < len(hit_mask) and hit_mask[ref_token_id + 1] == 0
+                            ) or ref_token_id + 1 == len(hit_mask):
+                                overlapping_count += overlapping_count_length ** weight_factor
+                                overlapping_count_length = 0
+                        else:
+                            overlapping_count += 1
+
+
+        if use_WLCS:
+            reference_count = reference_count ** weight_factor
+
+
+        return evaluated_count, reference_count, overlapping_count
+
+
+    def get_scores(self, hypothesis, references):
+        if isinstance(hypothesis, str):
+            hypothesis, references = [hypothesis], [references]
+
+
+        if type(hypothesis) != type(references):
+            raise ValueError("'hyps' and 'refs' are not of the same type")
+
+
+        if len(hypothesis) != len(references):
+            raise ValueError("'hyps' and 'refs' do not have the same length")
+        scores = {}
+        has_rouge_n_metric = (
+            len([metric for metric in self.metrics if metric.split("-")[-1].isdigit()]) > 0
+        )
+        if has_rouge_n_metric:
+            scores.update(self._get_scores_rouge_n(hypothesis, references))
+            # scores = {**scores, **self._get_scores_rouge_n(hypothesis, references)}
+
+
+        has_rouge_l_metric = (
+            len([metric for metric in self.metrics if metric.split("-")[-1].lower() == "l"]) > 0
+        )
+        if has_rouge_l_metric:
+            scores.update(self._get_scores_rouge_l_or_w(hypothesis, references, False))
+            # scores = {**scores, **self._get_scores_rouge_l_or_w(hypothesis, references, False)}
+
+
+        has_rouge_w_metric = (
+            len([metric for metric in self.metrics if metric.split("-")[-1].lower() == "w"]) > 0
+        )
+        if has_rouge_w_metric:
+            scores.update(self._get_scores_rouge_l_or_w(hypothesis, references, True))
+            # scores = {**scores, **self._get_scores_rouge_l_or_w(hypothesis, references, True)}
+
+
+        return scores
+
+
+    def _get_scores_rouge_n(self, all_hypothesis, all_references):
+        metrics = [metric for metric in self.metrics if metric.split("-")[-1].isdigit()]
+
+
+        if self.apply_avg or self.apply_best:
+            scores = {metric: {stat: 0.0 for stat in Rouge.STATS} for metric in metrics}
+        else:
+            scores = {
+                metric: [{stat: [] for stat in Rouge.STATS} for _ in range(len(all_hypothesis))]
+                for metric in metrics
+            }
+
+
+        for sample_id, (hypothesis, references) in enumerate(zip(all_hypothesis, all_references)):
+            assert isinstance(hypothesis, str)
+            has_multiple_references = False
+            if isinstance(references, list):
+                has_multiple_references = len(references) > 1
+                if not has_multiple_references:
+                    references = references[0]
+
+
+            # Prepare hypothesis and reference(s)
+            hypothesis = self._preprocess_summary_as_a_whole(hypothesis)
+            references = (
+                [self._preprocess_summary_as_a_whole(reference) for reference in references]
+                if has_multiple_references
+                else [self._preprocess_summary_as_a_whole(references)]
+            )
+
+
+            # Compute scores
+            for metric in metrics:
+                suffix = metric.split("-")[-1]
+                n = int(suffix)
+
+
+                # Aggregate
+                if self.apply_avg:
+                    # average model
+                    total_hypothesis_ngrams_count = 0
+                    total_reference_ngrams_count = 0
+                    total_ngrams_overlapping_count = 0
+
+
+                    for reference in references:
+                        (
+                            hypothesis_count,
+                            reference_count,
+                            overlapping_ngrams,
+                        ) = Rouge._compute_ngrams(hypothesis, reference, n)
+                        total_hypothesis_ngrams_count += hypothesis_count
+                        total_reference_ngrams_count += reference_count
+                        total_ngrams_overlapping_count += overlapping_ngrams
+
+
+                    score = Rouge._compute_p_r_f_score(
+                        total_hypothesis_ngrams_count,
+                        total_reference_ngrams_count,
+                        total_ngrams_overlapping_count,
+                        self.alpha,
+                    )
+
+
+                    for stat in Rouge.STATS:
+                        scores[metric][stat] += score[stat]
+                else:
+                    # Best model
+                    if self.apply_best:
+                        best_current_score = None
+                        for reference in references:
+                            (
+                                hypothesis_count,
+                                reference_count,
+                                overlapping_ngrams,
+                            ) = Rouge._compute_ngrams(hypothesis, reference, n)
+                            score = Rouge._compute_p_r_f_score(
+                                hypothesis_count,
+                                reference_count,
+                                overlapping_ngrams,
+                                self.alpha,
+                            )
+                            if best_current_score is None or score["r"] > best_current_score["r"]:
+                                best_current_score = score
+
+
+                        for stat in Rouge.STATS:
+                            scores[metric][stat] += best_current_score[stat]
+                    # Keep all
+                    else:
+                        for reference in references:
+                            (
+                                hypothesis_count,
+                                reference_count,
+                                overlapping_ngrams,
+                            ) = Rouge._compute_ngrams(hypothesis, reference, n)
+                            score = Rouge._compute_p_r_f_score(
+                                hypothesis_count,
+                                reference_count,
+                                overlapping_ngrams,
+                                self.alpha,
+                            )
+                            for stat in Rouge.STATS:
+                                scores[metric][sample_id][stat].append(score[stat])
+
+
+        # Compute final score with the average or the the max
+        if (self.apply_avg or self.apply_best) and len(all_hypothesis) > 1:
+            for metric in metrics:
+                for stat in Rouge.STATS:
+                    scores[metric][stat] /= len(all_hypothesis)
+
+
+        return scores
+
+
+    def _get_scores_rouge_l_or_w(self, all_hypothesis, all_references, use_w=False):
+        metric = "rouge-w" if use_w else "rouge-l"
+        if self.apply_avg or self.apply_best:
+            scores = {metric: {stat: 0.0 for stat in Rouge.STATS}}
+        else:
+            scores = {
+                metric: [{stat: [] for stat in Rouge.STATS} for _ in range(len(all_hypothesis))]
+            }
+
+
+        for sample_id, (hypothesis_sentences, references_sentences) in enumerate(
+            zip(all_hypothesis, all_references)
+        ):
+            assert isinstance(hypothesis_sentences, str)
+            has_multiple_references = False
+            if isinstance(references_sentences, list):
+                has_multiple_references = len(references_sentences) > 1
+                if not has_multiple_references:
+                    references_sentences = references_sentences[0]
+
+
+            # Prepare hypothesis and reference(s)
+            hypothesis_sentences = self._preprocess_summary_per_sentence(hypothesis_sentences)
+            references_sentences = (
+                [
+                    self._preprocess_summary_per_sentence(reference)
+                    for reference in references_sentences
+                ]
+                if has_multiple_references
+                else [self._preprocess_summary_per_sentence(references_sentences)]
+            )
+
+
+            # Compute scores
+            # Aggregate
+            if self.apply_avg:
+                # average model
+                total_hypothesis_ngrams_count = 0
+                total_reference_ngrams_count = 0
+                total_ngrams_overlapping_count = 0
+
+
+                for reference_sentences in references_sentences:
+                    (
+                        hypothesis_count,
+                        reference_count,
+                        overlapping_ngrams,
+                    ) = Rouge._compute_ngrams_lcs(
+                        hypothesis_sentences,
+                        reference_sentences,
+                        self.weight_factor if use_w else 1.0,
+                    )
+                    total_hypothesis_ngrams_count += hypothesis_count
+                    total_reference_ngrams_count += reference_count
+                    total_ngrams_overlapping_count += overlapping_ngrams
+
+
+                score = Rouge._compute_p_r_f_score(
+                    total_hypothesis_ngrams_count,
+                    total_reference_ngrams_count,
+                    total_ngrams_overlapping_count,
+                    self.alpha,
+                    self.weight_factor if use_w else 1.0,
+                )
+                for stat in Rouge.STATS:
+                    scores[metric][stat] += score[stat]
+            else:
+                # Best model
+                if self.apply_best:
+                    best_current_score = None
+                    best_current_score_wlcs = None
+                    for reference_sentences in references_sentences:
+                        (
+                            hypothesis_count,
+                            reference_count,
+                            overlapping_ngrams,
+                        ) = Rouge._compute_ngrams_lcs(
+                            hypothesis_sentences,
+                            reference_sentences,
+                            self.weight_factor if use_w else 1.0,
+                        )
+                        score = Rouge._compute_p_r_f_score(
+                            total_hypothesis_ngrams_count,
+                            total_reference_ngrams_count,
+                            total_ngrams_overlapping_count,
+                            self.alpha,
+                            self.weight_factor if use_w else 1.0,
+                        )
+
+
+                        if use_w:
+                            reference_count_for_score = reference_count ** (
+                                1.0 / self.weight_factor
+                            )
+                            overlapping_ngrams_for_score = overlapping_ngrams
+                            score_wlcs = (
+                                overlapping_ngrams_for_score / reference_count_for_score
+                            ) ** (1.0 / self.weight_factor)
+
+
+                            if (
+                                best_current_score_wlcs is None
+                                or score_wlcs > best_current_score_wlcs
+                            ):
+                                best_current_score = score
+                                best_current_score_wlcs = score_wlcs
+                        else:
+                            if best_current_score is None or score["r"] > best_current_score["r"]:
+                                best_current_score = score
+
+
+                    for stat in Rouge.STATS:
+                        scores[metric][stat] += best_current_score[stat]
+                # Keep all
+                else:
+                    for reference_sentences in references_sentences:
+                        (
+                            hypothesis_count,
+                            reference_count,
+                            overlapping_ngrams,
+                        ) = Rouge._compute_ngrams_lcs(
+                            hypothesis_sentences,
+                            reference_sentences,
+                            self.weight_factor if use_w else 1.0,
+                        )
+                        score = Rouge._compute_p_r_f_score(
+                            hypothesis_count,
+                            reference_count,
+                            overlapping_ngrams,
+                            self.alpha,
+                            self.weight_factor,
+                        )
+
+
+                        for stat in Rouge.STATS:
+                            scores[metric][sample_id][stat].append(score[stat])
+
+
+        # Compute final score with the average or the the max
+        if (self.apply_avg or self.apply_best) and len(all_hypothesis) > 1:
+            for stat in Rouge.STATS:
+                scores[metric][stat] /= len(all_hypothesis)
+
+
+        return scores
+
+
+    def _preprocess_summary_as_a_whole(self, summary):
+        sentences = Rouge.split_into_sentences(summary)
+
+
+        # Truncate
+        if self.limit_length:
+            # By words
+            if self.length_limit_type == "words":
+                summary = " ".join(sentences)
+                all_tokens = summary.split()  # Counting as in the perls script
+                summary = " ".join(all_tokens[: self.length_limit])
+
+
+            # By bytes
+            elif self.length_limit_type == "bytes":
+                summary = ""
+                current_len = 0
+                for sentence in sentences:
+                    sentence = sentence.strip()
+                    sentence_len = len(sentence)
+
+
+                    if current_len + sentence_len < self.length_limit:
+                        if current_len != 0:
+                            summary += " "
+                        summary += sentence
+                        current_len += sentence_len
+                    else:
+                        if current_len > 0:
+                            summary += " "
+                        summary += sentence[: self.length_limit - current_len]
+                        break
+        else:
+            summary = " ".join(sentences)
+
+
+        summary = Rouge.REMOVE_CHAR_PATTERN.sub(" ", summary.lower()).strip()
+
+
+        tokens = self.tokenize_text(Rouge.REMOVE_CHAR_PATTERN.sub(" ", summary))
+        preprocessed_summary = [" ".join(tokens)]
+
+
+        return preprocessed_summary
+
+
+    def _preprocess_summary_per_sentence(self, summary):
+        sentences = Rouge.split_into_sentences(summary)
+
+
+        # Truncate
+        if self.limit_length:
+            final_sentences = []
+            current_len = 0
+            # By words
+            if self.length_limit_type == "words":
+                for sentence in sentences:
+                    tokens = sentence.strip().split()
+                    tokens_len = len(tokens)
+                    if current_len + tokens_len < self.length_limit:
+                        sentence = " ".join(tokens)
+                        final_sentences.append(sentence)
+                        current_len += tokens_len
+                    else:
+                        sentence = " ".join(tokens[: self.length_limit - current_len])
+                        final_sentences.append(sentence)
+                        break
+            # By bytes
+            elif self.length_limit_type == "bytes":
+                for sentence in sentences:
+                    sentence = sentence.strip()
+                    sentence_len = len(sentence)
+                    if current_len + sentence_len < self.length_limit:
+                        final_sentences.append(sentence)
+                        current_len += sentence_len
+                    else:
+                        sentence = sentence[: self.length_limit - current_len]
+                        final_sentences.append(sentence)
+                        break
+            sentences = final_sentences
+
+
+        final_sentences = []
+        for sentence in sentences:
+            sentence = Rouge.REMOVE_CHAR_PATTERN.sub(" ", sentence.lower()).strip()
+
+
+            tokens = self.tokenize_text(Rouge.REMOVE_CHAR_PATTERN.sub(" ", sentence))
+
+
+            sentence = " ".join(tokens)
+
+
+            final_sentences.append(sentence)
+
+
+        return final_sentences
+
+
+def format_rouge_scores(scores):
+    return np.mean([
+        scores["rouge-1"]["f"],
+        scores["rouge-2"]["f"],
+        scores["rouge-l"]["f"],])
 
 
 def get_exp_id(path="./model/", prefix="exp_"):
@@ -89,9 +1219,74 @@ def load_data(config):
 
 
 def load_data_morp(config):
-    # train_df = pd.read_csv(os.path.join(config.root_path, "train_morp.csv"))
+    if config.do_relabel:
+        train_df = pd.read_csv(os.path.join(config.root_path, "train.csv"))
+        preprocess(train_df)
+        train_df['label'] = train_df[['article_original', 'extractive']].apply(
+            lambda v: "\n".join(
+                np.asarray(v['article_original'])[v['extractive']].tolist()),
+            axis=1)
+        pred_fin = train_df['label'].values.tolist()
+        gold_fin = train_df['abstractive'].values.tolist()
+
+        rouge = Rouge(
+            metrics=["rouge-n", "rouge-l"],
+            max_n=2,
+            limit_length=True,
+            length_limit=1000,
+            length_limit_type="words",
+            use_tokenizer=True,
+            apply_avg=True,
+            apply_best=False,
+            alpha=0.5,  # Default F1_score
+            weight_factor=1.2,
+        )
+
+        train_df['article_original_np'] = train_df['article_original'].apply(
+            lambda v: np.asarray(v))
+
+        ll_fin = []
+        for art, p, g, ext in tqdm(
+                zip(train_df['article_original_np'], pred_fin, gold_fin,
+                    train_df['extractive'])):
+            li = list(range(len(art)))
+            max_origin = format_rouge_scores(rouge.get_scores(p, g))
+            sent_fin = ""
+            label_fin = []
+
+            for loop in range(3):
+                max_ = 0
+                idx_ = 0
+                sent_ = 0
+                for idx in li:
+                    if loop == 0:
+                        sent = sent_fin + art[idx]
+                    else:
+                        sent = sent_fin + "\n" + art[idx]
+                    scores = format_rouge_scores(rouge.get_scores(sent, g))
+                    if scores > max_:
+                        max_ = scores
+                        idx_ = idx
+                        sent_ = art[idx]
+
+                if loop == 0:
+                    sent_fin = sent_
+                else:
+                    sent_fin = sent_fin + "\n" + sent_
+                label_fin.append(idx_)
+
+                li.remove(idx_)
+
+            if max_origin > max_:
+                ll_fin.append(ext)
+            else:
+                ll_fin.append(label_fin)
+
+        train_morp = pd.read_csv(os.path.join(config.root_path, "train_morp.csv"))
+        train_morp['extractive'] = [sorted(v) for v in ll_fin]
+        train_morp.to_csv(os.path.join(config.root_path, "train_morp_new.csv"), index=False)
+
     train_df = pd.read_csv(os.path.join(config.root_path, "train_morp_new.csv"))
-    # train_df = pd.read_csv(os.path.join(config.root_path, "train_morp_new2.csv"))
     test_ext_df = pd.read_csv(
         os.path.join(config.root_path, "test_ext_morp.csv"))
     test_abs_df = pd.read_csv(
@@ -177,7 +1372,7 @@ class DSBADataset(Dataset):
             cands = []
             clss, num_tokens = np.asarray(clss), np.asarray(num_tokens)
             for i, n in enumerate(clss):
-                j = np.where(num_tokens - n <= 1280)[0][-1] + 1
+                j = np.where(num_tokens - n <= 1024)[0][-1] + 1
                 cands.append((i, j, sum(labels[i:j])))
             max_num = max([c[-1] for c in cands])
             cands = [c for c in cands if c[-1] == max_num]
@@ -1076,7 +2271,8 @@ class CFG:
     num_targets = 2
     val_fold = 0
     n_splits = 5
-    morp = False
+    do_morp = True
+    do_relabel = True
 
 
 # get version
@@ -1105,7 +2301,7 @@ json.dump(
 ### seed all
 seed_everything(CFG.seed)
 
-if CFG.morp:
+if CFG.do_morp:
     train_df, test_ext_df, test_abs_df, ss_ext_df, ss_abs_df = load_data(CFG)
 
     preprocess(train_df)
@@ -1113,13 +2309,36 @@ if CFG.morp:
     preprocess(test_abs_df, True)
 
     # get morp
+    from khaiii import KhaiiiApi
 
-else:
-    train_df, test_ext_df, test_abs_df, ss_ext_df, ss_abs_df = load_data_morp(CFG)
+    def get_morp(sents):
+        def _get_morp(sent):
+            sent = " ".join(
+                [morp.lex + "/" + morp.tag for word in api.analyze(sent) for
+                 morp in word.morphs])
+            return sent
 
-    preprocess(train_df)
-    preprocess(test_ext_df, True)
-    preprocess(test_abs_df, True)
+        if isinstance(sents, list):
+            sents = [_get_morp(sent) for sent in sents]
+        else:
+            sents = _get_morp(sents)
+
+        return sents
+
+    train_df['article_original'] = train_df['article_original'].progress_apply(get_morp)
+    train_df['abstractive'] = train_df['abstractive'].progress_apply(get_morp)
+    test_ext_df['article_original'] = test_ext_df['article_original'].progress_apply(get_morp)
+    test_abs_df['article_original'] = test_abs_df['article_original'].progress_apply(get_morp)
+
+    train_df.to_csv(os.path.join(CFG.root_path, "train_morp.csv"), index=False)
+    test_ext_df.to_csv(os.path.join(CFG.root_path, "test_ext_morp.csv"), index=False)
+    test_abs_df.to_csv(os.path.join(CFG.root_path, "test_abs_morp.csv"), index=False)
+
+train_df, test_ext_df, test_abs_df, ss_ext_df, ss_abs_df = load_data_morp(CFG)
+
+preprocess(train_df)
+preprocess(test_ext_df, True)
+preprocess(test_abs_df, True)
 
 train_df['fold'] = -1
 folds = StratifiedKFold(CFG.n_splits, shuffle=True, random_state=CFG.seed)
