@@ -90,8 +90,8 @@ def load_data(config):
 
 def load_data_morp(config):
     # train_df = pd.read_csv(os.path.join(config.root_path, "train_morp.csv"))
-    # train_df = pd.read_csv(os.path.join(config.root_path, "train_morp_new.csv"))
-    train_df = pd.read_csv(os.path.join(config.root_path, "train_morp_new2.csv"))
+    train_df = pd.read_csv(os.path.join(config.root_path, "train_morp_new.csv"))
+    # train_df = pd.read_csv(os.path.join(config.root_path, "train_morp_new2.csv"))
     test_ext_df = pd.read_csv(
         os.path.join(config.root_path, "test_ext_morp.csv"))
     test_abs_df = pd.read_csv(
@@ -177,7 +177,7 @@ class DSBADataset(Dataset):
             cands = []
             clss, num_tokens = np.asarray(clss), np.asarray(num_tokens)
             for i, n in enumerate(clss):
-                j = np.where(num_tokens - n <= 1024)[0][-1] + 1
+                j = np.where(num_tokens - n <= 1280)[0][-1] + 1
                 cands.append((i, j, sum(labels[i:j])))
             max_num = max([c[-1] for c in cands])
             cands = [c for c in cands if c[-1] == max_num]
