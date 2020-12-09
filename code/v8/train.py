@@ -90,7 +90,8 @@ def load_data(config):
 
 def load_data_morp(config):
     # train_df = pd.read_csv(os.path.join(config.root_path, "train_morp.csv"))
-    train_df = pd.read_csv(os.path.join(config.root_path, "train_morp_new.csv"))
+    # train_df = pd.read_csv(os.path.join(config.root_path, "train_morp_new.csv"))
+    train_df = pd.read_csv(os.path.join(config.root_path, "train_morp_new2.csv"))
     test_ext_df = pd.read_csv(
         os.path.join(config.root_path, "test_ext_morp.csv"))
     test_abs_df = pd.read_csv(
@@ -1064,10 +1065,10 @@ class CFG:
 
     # train
     batch_size = 16
-    learning_rate = 8e-6
-    num_epochs = 8
+    learning_rate = 1e-5
+    num_epochs = 4
     start_epoch = 0
-    warmup_steps = 600
+    warmup_steps = 300
 
     # etc
     seed = 42
