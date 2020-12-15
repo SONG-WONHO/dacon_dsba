@@ -100,9 +100,6 @@ class CFG:
 CFG.device = get_device()
 
 pprint({k: v for k, v in dict(CFG.__dict__).items() if '__' not in k})
-json.dump(
-    {k: v for k, v in dict(CFG.__dict__).items() if '__' not in k},
-    open(os.path.join(CFG.log_path, 'CFG.json'), "w"))
 
 ### seed all
 seed_everything(CFG.seed)
