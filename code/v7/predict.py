@@ -70,8 +70,8 @@ def get_device():
 
 class CFG:
     # path
-    root_path = "../input/data/"
-    etri_path = "./etri/"
+    root_path = "./input/data/"
+    etri_path = "./input/etri/"
 
     # preprocess
     max_len = 1536
@@ -1771,7 +1771,7 @@ CFG.batch_size = 1
 # get learner
 learner = Learner(CFG)
 learner.name = f"model.fold_{CFG.val_fold}"
-learner.load("../model/v7/exp_32/model.fold_0.best.pt", "model_state_dict")
+learner.load("./model/v7/exp_32/model.fold_0.best.pt", "model_state_dict")
 model = learner.best_model
 
 
